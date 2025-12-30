@@ -11,9 +11,9 @@ export default function Home() {
   return (
     <div>
       <section className="mb-12">
-        <h1 className="text-3xl font-bold mb-4">Frontend Tech Blog</h1>
+        <h1 className="text-3xl font-bold mb-4">Bonjgi의 Tech Blog</h1>
         <p className="text-muted-foreground">
-          프론트엔드 개발에 관한 기술과 경험을 공유합니다.
+          기술과 경험을 공유합니다.
         </p>
       </section>
 

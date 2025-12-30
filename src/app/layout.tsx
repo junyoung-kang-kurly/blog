@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Frontend Tech Blog",
-    template: "%s | Frontend Tech Blog",
+    default: "Bonjugi Tech Blog",
+    template: "%s | Bonjugi Tech Blog",
   },
-  description: "프론트엔드 개발에 관한 기술 블로그",
+  description: "Bonjugi의 기술 블로그",
 };
 
 export default function RootLayout({
@@ -59,7 +59,7 @@ export default function RootLayout({
         <main className="max-w-3xl mx-auto px-4 py-8">{children}</main>
         <footer className="border-t border-border mt-auto">
           <div className="max-w-3xl mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} Frontend Tech Blog
+            &copy; {new Date().getFullYear()} Bonjugi의 Tech Blog
           </div>
         </footer>
       </body>
