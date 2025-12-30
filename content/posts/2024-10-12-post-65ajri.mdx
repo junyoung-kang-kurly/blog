@@ -1,0 +1,179 @@
+---
+title: "제네릭은 런타임에 소거 되지만, 런타임에 리플렉션이 제네릭 정보를 알수 있는 이유"
+description: " 제네릭은 런타임에선 소거된다 소거되는 이유는 jdk1.5에 제네릭이 추가되면서 하위호환을 위한것인데, 자세한 이유와 이러한 구조적 한계로 생기는 문제들은 여기 서 자세히 참고할수 있다. > 이외에도 소거로 인해 발생하는 문제가 더 있었던거 같은데 다음에 추가해 보자."
+date: "2024-10-12"
+published: true
+tags: []
+---
+
+### 제네릭은 런타임에선 소거된다
+소거되는 이유는 jdk1.5에 제네릭이 추가되면서 하위호환을 위한것인데, 자세한 이유와 이러한 구조적 한계로 생기는 문제들은 [여기](https://lifework-archive-reservoir.tistory.com/313) 서 자세히 참고할수 있다.
+> 이외에도 소거로 인해 발생하는 문제가 더 있었던거 같은데 다음에 추가해 보자.
+
+### 리플렉션은 제네릭 정보를 알수있다
+
+아래처럼 리플렉션으로 `myMethod` 메소드의 반환타입을 출력해보면 정상적으로 `List<String>` 를 출력한다.
+
+```java
+public class MyClass {
+    List<String> myMethod() {
+        return null;
+    }
+}
+
+public static void main(String[] args) throws NoSuchMethodException {
+    Class<MyClass> clazz = MyClass.class;
+    Method hello = clazz.getDeclaredMethod("myMethod", null);
+    Type genericReturnType = hello.getGenericReturnType();
+    System.out.println(genericReturnType);  // java.util.List<java.lang.String>
+}    
+```
+
+### 갑작스런 의문
+
+이때 갑작스레 '리플렉션으로는 제네릭 을 알수있을까?' 라는 의문이 들었다. 
+왜냐하면 리플렉션은 Class 를 이용한 API 이고 바이트코드를 이용한다.
+이때, 이때 실행되는것은 런타임일 것이니... 
+혹시나 리플렉션에선 제네릭을 못쓰는것은 아닐까 하는 궁금증이 생겼다.
+(자바 플랫폼에 대한 지식이 낮기 때문에 생긴 의혹이다)
+
+
+### 바이트코드로 확인한 제네릭 메타데이터
+
+리플렉션에서 제네릭을 쓸수있는 이유는, 너무나 당연하게도 바이트코드 에서는 제네릭 정보가 남아있기 때문이다.
+
+아래는 javap 로 확인해본 바이트코드 인데, `java.util.List<java.lang.String> myMethod();` 부분을 확인해 볼수 있었다.
+
+
+#### javap
+
+``` 
+ javap -v -s MyClass                                                                                                                                          
+Classfile /Users/bonjugi/IdeaProjects/temp/out/production/temp/MyClass.class
+  Last modified 2024. 10. 12.; size 397 bytes
+  SHA-256 checksum d6457f46eba7520d1e30f7bd915aa4b8733c9fee241156a66172b554c6be2fb5
+  Compiled from "MyClass.java"
+public class MyClass
+  minor version: 0
+  major version: 66
+  flags: (0x0021) ACC_PUBLIC, ACC_SUPER
+  this_class: #7                          // MyClass
+  super_class: #2                         // java/lang/Object
+  interfaces: 0, fields: 0, methods: 2, attributes: 1
+Constant pool:
+   #1 = Methodref          #2.#3          // java/lang/Object."<init>":()V
+   #2 = Class              #4             // java/lang/Object
+   #3 = NameAndType        #5:#6          // "<init>":()V
+   #4 = Utf8               java/lang/Object
+   #5 = Utf8               <init>
+   #6 = Utf8               ()V
+   #7 = Class              #8             // MyClass
+   #8 = Utf8               MyClass
+   #9 = Utf8               Code
+  #10 = Utf8               LineNumberTable
+  #11 = Utf8               LocalVariableTable
+  #12 = Utf8               this
+  #13 = Utf8               LMyClass;
+  #14 = Utf8               myMethod
+  #15 = Utf8               ()Ljava/util/List;
+  #16 = Utf8               Signature
+  #17 = Utf8               ()Ljava/util/List<Ljava/lang/String;>;
+  #18 = Utf8               SourceFile
+  #19 = Utf8               MyClass.java
+{
+  public MyClass();
+    descriptor: ()V
+    flags: (0x0001) ACC_PUBLIC
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aload_0
+         1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+         4: return
+      LineNumberTable:
+        line 4: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       5     0  this   LMyClass;
+
+  java.util.List<java.lang.String> myMethod();
+    descriptor: ()Ljava/util/List;
+    flags: (0x0000)
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aconst_null
+         1: areturn
+      LineNumberTable:
+        line 7: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       2     0  this   LMyClass;
+    Signature: #17                          // ()Ljava/util/List<Ljava/lang/String;>;
+}
+SourceFile: "MyClass.java"
+
+```
+
+
+`descriptor` 부분과, `Signature` 두개가 표기 되어있다. 둘은 제네릭이 없고 있고의 차이가 있다.
+정확하게는 모르겠지만, 제네릭이 jdk1.5에 추가 되면서 하위호환을 유지하고 있다는 히스토리가 있었다. 
+두 스펙도 마찬가지로 제네릭이 있는부분과 없는부분을 각자의 스펙으로 둔게 아닐까 유추해 본다.
+실제로 리플렉션 api도 보면 getType이 있고, 1.5에 추가 된 getGenericType이 별도로 있다.
+
+[oracle jvm 스펙](https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.9) 문서를 참고하면 다음과 같이 1.5에 추가되어있다고 쓰여있기도 하다.
+
+
+![](/images/posts/67704d7e-a7e7-40f4-9597-514f154f9431-image.png)
+
+
+
+
+
+
+#### idea
+
+아래와 같이 IDE 에서도 바이트코드를 볼수 있다.
+javap와는 포맷이 조금 다른데, 정보 자체는 다르지 않다.
+오히려 가독성은 훨씬 더 좋은것 같다. 
+
+```java
+// class version 66.0 (66)
+// access flags 0x21
+public class MyClass {
+
+  // compiled from: MyClass.java
+
+  // access flags 0x1
+  public <init>()V
+   L0
+    LINENUMBER 4 L0
+    ALOAD 0
+    INVOKESPECIAL java/lang/Object.<init> ()V
+    RETURN
+   L1
+    LOCALVARIABLE this LMyClass; L0 L1 0
+    MAXSTACK = 1
+    MAXLOCALS = 1
+
+  // access flags 0x0
+  // signature ()Ljava/util/List<Ljava/lang/String;>;
+  // declaration: java.util.List<java.lang.String> myMethod()
+  myMethod()Ljava/util/List;
+   L0
+    LINENUMBER 7 L0
+    ACONST_NULL
+    ARETURN
+   L1
+    LOCALVARIABLE this LMyClass; L0 L1 0
+    MAXSTACK = 1
+    MAXLOCALS = 1
+}
+```
+
+### 결론
+제네릭의 런타임 소거된다. 
+이와는 별개로, 런타임에서 바이트코드를 참조하는 리플렉션은 여전히 읽는데 문제가 없다.
+바이트코드의 메타데이터에 제네릭 정보가 포함되어있기 때문이다.
+리플렉션은 객체를 로딩하는게 아니라 클래스 메타데이터를 읽어들이는것이라 전혀 관계가 없다.
+
+제네릭은 1.5에 추가되었으며 하위호환을 유지하고있다.
+그로 인해 jvm 스펙 여기저기 1.5 전후로 흔적이 있는것 같다 (내생각)

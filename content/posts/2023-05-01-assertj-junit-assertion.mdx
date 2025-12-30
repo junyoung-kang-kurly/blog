@@ -1,0 +1,63 @@
+---
+title: "AssertJ과 JUnit 의 Assertion 비교"
+description: "juni5 공식문서(https&#x3A;//junit.org/junit5/docs/current/user-guide/> JUnit Jupiter에서 제공하는 어설션 기능만으로도 많은 테스트 시나리오에 충분하지만, 더 강력한 성능과 매처와 같은 추가 기능이 필요하거나 필"
+date: "2023-05-01"
+published: true
+tags: []
+---
+
+### 공식문서도 써드파티 Assertion을 권한다
+[juni5 공식문서](https://junit.org/junit5/docs/current/user-guide/#writing-tests-assertions-third-party) 에서 다음과 같이 말하고 있다.
+> JUnit Jupiter에서 제공하는 어설션 기능만으로도 많은 테스트 시나리오에 충분하지만, 
+더 강력한 성능과 매처와 같은 추가 기능이 필요하거나 필요한 경우가 있습니다. 
+이러한 경우 JUnit 팀은 AssertJ, Hamcrest, Truth 등과 같은 타사 어설션 라이브러리를 사용할 것을 권장합니다. 
+따라서 개발자는 원하는 어설션 라이브러리를 자유롭게 사용할 수 있습니다.
+
+Jupiter 기본 어설션은 매처같은게 빈약해서 다른 써드파티 쓰는것을 권장한다고 한다.
+표현을 풍부하게 하기 위해서는 `Jupiter + Hamcrest` 또는 `AssertJ` 를 쓰면 된다.
+
+
+### Assertion 두가지 비교. (AssertJ vs JUnit)
+
+[AssertJ vs JUnit](https://kkoon9.tistory.com/135?category=1035506)
+
+이글을 보면 퓨어한 junit과 assertj 를 비교하고 있다.
+메소드 체이닝이 안되다보니 인자가 2개씩 들어가는게 보기 좋지 않다. 
+어떤게 expected이고 어떤게 actual인지 이해할수 없고, 사람 말로 풀어지지도 않는다.
+> 가장 읽기 좋은 함수는 인자의 갯수가 1개 또는 0개 일때 이다.
+
+#### Collection test
+특히 `Collection Test` 예제를 보면 AssertJ가 압승이다.
+junit은 결국 assertEquals 2개의 인자 비교를 만들지만 assertj는 여러 표현이 가능하기 때문에 컬렉션 그대로 that에 넣고 filteredOn, containsOnly, allMatch, anyMatch 같은 비교가 가능하다.
+
+#### Throwable test
+throwable 테스트도 표현력이 훨씬 좋다. 
+BDD(given-when-then) 구조로 만들기도 좋다.
+![](/images/posts/67168e15-2189-40ff-ad4f-5fe2dc8eedb0-image.png)
+
+
+반면 junit꺼를 보자. [원문 링크](https://covenant.tistory.com/256) 
+BDD 스타일은 커녕 역시나 assertEquals의 표현력은 아쉽다.
+
+![](/images/posts/81086507-ff30-40c3-bd43-e0c4a8b9f8ba-image.png)
+
+
+
+
+#### Junit에 Hamcreset 를 곁들여도 AssertJ가 낫다.
+
+[AssertJ 알아보기 (부제 : Jupiter, Hamcrest 맛보기 )](https://loopstudy.tistory.com/287)
+
+여기선 junit에 Hamcrest 를 곁들여서 예제를 볼수 있다.
+그나마 표현이 좋아지긴 하지만, 결국 메소드 체이닝보다 표현력이 떨어진다.
+
+
+일단 국내자료는 [백기선님 영상](https://youtu.be/zLx_fI24UXM?t=274) 덕분인지 대부분 AssertJ를 쓰고 있는것 같다.
+링크를 들어가 영상을 보면 보면, Hamcrest 매처를 이용 하려 하는데 상당히 불편하다.
+is()를 외워야 하고 자동완성도 아쉽다.
+불편해서 다들 결국 퓨어 Junit만 쓸게될수도..
+
+
+
+### 결론
+메소드 체이닝도 되고, 인자가 1개만 들어가서 어디가 expected인지 사람의 문장구조로 이해하기 좋으며, 자동완성도 되고, Hamcrest 없어도 되고, throwable도 BDD스타일을 지원하고, 다양한 collection assertion을 지원하는 AssertJ 쓰자.

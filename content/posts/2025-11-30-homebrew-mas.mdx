@@ -1,0 +1,183 @@
+---
+title: "homebrew로 카카오톡 설치하기  (mas)"
+description: "해당 어플리케이션 웹사이트에서 직접 설치할 수도 있지만, 터미널에서 명령어로 편하게 설치해보자.비주얼 스튜디오 코드와 크롬은 필수다.최신 homebrew에는 cask가 기본으로 되어 있어서 --cask 명령어는 생략해도 된다.PC톡은 무조건 필요하다.설치에 앞서서 ma"
+date: "2025-11-30"
+published: true
+tags: ["Node", "homebrew", "mac", "vscode"]
+---
+## mas란?
+
+**mas**(Mac App Store CLI)는 Mac App Store의 command line interface로, 터미널에서 명령어를 통해 App Store 앱을 검색, 설치, 업데이트할 수 있는 편리한 도구입니다.
+
+### 주요 기능
+
+- Mac App Store 앱 검색
+- 명령어로 앱 설치/제거
+- 업데이트 관리
+- Homebrew와 통합하여 사용 가능
+
+mas를 사용하면 GUI 없이 터미널만으로 Mac 환경을 자동화하고, Brewfile을 통해 개발 환경을 코드로 관리할 수 있습니다.
+
+## 설치 및 기본 사용법
+
+### 1. mas 설치
+
+Homebrew를 통해 mas를 설치합니다:
+
+```bash
+brew install mas
+```
+
+### 2. 카카오톡 설치
+
+App Store에서 앱의 ID를 찾아 설치합니다:
+
+```bash
+# 앱 검색
+mas search KakaoTalk
+
+# 출력 예시:
+# 869223134  KakaoTalk (2.9.3)
+
+# 앱 설치 (ID 사용)
+mas install 869223134
+```
+
+**참고**: 버전 번호는 시점에 따라 달라질 수 있습니다.
+
+## 주요 명령어
+
+### 설치된 앱 관리
+
+```bash
+# 현재 설치된 앱 목록 확인
+mas list
+
+# 특정 앱 제거
+mas uninstall [APP_ID]
+```
+
+### 업데이트 관리
+
+```bash
+# 업데이트 가능한 앱 확인
+mas outdated
+
+# 모든 앱 업데이트
+mas upgrade
+
+# 특정 앱만 업데이트
+mas upgrade [APP_ID]
+```
+
+### 계정 관리
+
+```bash
+# 현재 로그인된 Apple ID 확인
+mas account
+
+# 로그아웃
+mas signout
+```
+
+## 문제 해결
+
+### 로그인 문제
+
+`missing argument for apple ID` 에러가 발생하는 경우:
+
+```bash
+# 1. App Store 앱에서 수동 로그인
+# GUI로 App Store 앱을 열고 로그인
+
+# 2. mas 초기화
+mas reset
+
+# 3. 다시 시도
+mas install [APP_ID]
+```
+
+**주의사항**: 
+- `mas signin` 명령어는 macOS 10.13+ 및 2단계 인증 환경에서 작동하지 않을 수 있습니다.
+- App Store 앱에서 먼저 로그인한 후 mas 명령어를 사용하는 것이 가장 안정적입니다.
+
+## Brewfile과 함께 사용하기
+
+mas를 Brewfile에 포함하면 개발 환경을 완번하게 자동화할 수 있습니다:
+
+```ruby
+# Brewfile 예시
+
+# CLI 도구
+brew "git"
+brew "mas"
+
+# GUI 애플리케이션
+cask "visual-studio-code"
+cask "google-chrome"
+
+# Mac App Store 앱
+mas "KakaoTalk", id: 869223134
+mas "Magnet", id: 441258766
+mas "Xcode", id: 497799835
+```
+
+### Brewfile 사용법
+
+```bash
+# 현재 설치된 패키지/앱 백업 (Brewfile 생성)
+brew bundle dump
+
+# 새 Mac에서 Brewfile로 환경 구성
+brew bundle install
+
+# 누락된 항목 확인
+brew bundle check
+
+# Brewfile에 없는 항목 정리
+brew bundle cleanup --force
+```
+
+이 방법을 사용하면:
+- 여러 디바이스에서 동일한 환경 유지
+- 새 Mac 설정 시간 단축
+- 개발 환경을 코드로 관리 (Git에 커밋 가능)
+- 팀 멤버 간 환경 공유 용이
+
+## 추가 팁
+
+### 1. 특정 앱 ID 빠르게 찾기
+
+```bash
+# 앱 이름으로 검색하여 ID만 추출
+mas search "Xcode" | awk '{print $1}'
+```
+
+### 2. 복수 앱 일괄 설치
+
+```bash
+# 여러 앱 한 번에 설치
+mas install 869223134 441258766 497799835
+```
+
+### 3. 설치 스크립트 예시
+
+```bash
+#!/bin/bash
+# mac-setup.sh
+
+echo "Installing Homebrew packages..."
+brew install git mas
+
+echo "Installing Mac App Store apps..."
+mas install 869223134  # KakaoTalk
+mas install 441258766  # Magnet
+
+echo "Setup complete!"
+```
+
+## 참고 자료
+
+- [mas-cli GitHub 저장소](https://github.com/mas-cli/mas)
+- [Homebrew Bundle 공식 문서](https://github.com/Homebrew/homebrew-bundle)
+- [Homebrew 공식 사이트](https://brew.sh/)

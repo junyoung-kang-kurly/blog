@@ -1,0 +1,98 @@
+---
+title: "ThreadPoolTaskExecutor 옵션 설명"
+description: "TaskExecutor 만들때 이런식으로 bean에 등록해서 종종 쓴다.그런데 항상 옵션이 헷갈린다.생각보다 비슷하지만 틀리게 쓴 블로그도 많아서 이번기회에 정리 해 둔다.들어가기에 앞서 Pool 에 대해서.ThreadPoolTaskExecutor 를 디버깅 해보면 다"
+date: "2023-02-15"
+published: true
+tags: []
+---
+TaskExecutor 만들때 이런식으로 bean에 등록해서 종종 쓴다.
+그런데 항상 옵션이 헷갈린다.
+생각보다 비슷하지만 틀리게 쓴 블로그도 많아서 이번기회에 정리 해 둔다.
+
+```java
+@Bean
+public Executor getAsyncExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    
+    // 1. 
+    executor.setCorePoolSize(2);
+    executor.setMaxPoolSize(4);
+    executor.setQueueCapacity(5);
+    executor.setRejectedExecutionHandler(new CallerRunsPolicy());
+    
+    // 2.
+    executor.setTaskDecorator(new MdcTaskDecorator());
+    
+	// 3.
+    // shutdown 될때 task가 모두 처리 될때까지 대기한다.
+    // 이때 무한정 기다릴수 없으니 30초까지 기다린다.
+    executor.setWaitForTasksToCompleteOnShutdown(true);
+    executor.setAwaitTerminationSeconds(30);
+
+	// 4. 얜 생략해도 bean 이름으로 자동 등록 되어 괜찮다.
+    // executor.setThreadNamePrefix("t-");
+
+
+    executor.initialize();
+    return executor;
+}
+```
+
+들어가기에 앞서 Pool 에 대해서.
+ThreadPoolTaskExecutor 를 디버깅 해보면 다음과 같은 값들을 볼수 있다.
+일단 용어만 눈에 넣어두자.
+
+```
+[Running, pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0]
+```
+- Excutor의 상태
+- 쓰레드 풀의 수
+- 활성 쓰레드 수
+- 큐에 있는 태스크 수
+- 완료된 태스크 수
+
+### 1. CorePoolSize(2), MaxPoolSize(4), QueCapacity(5), CallerRunsPolicy
+
+기본 풀의 수를 2로 등록 한 것이다.
+처음 2개의 태스크를 등록하면 풀 2개가 처리하여 `pool size = 2` 가 된다.
+큐 케파가 5개 짜리니까, 5개의 태스크를 더 밀어넣을수 있다.
+
+큐도 풀도 꽉찬 상태에서는 풀을 MaxPoolSize(4) 까지는 추가로 등록한다. 
+이미 풀 2개가 더있었으니 2개의 풀을 더 등록할수 있어서 2개의 태스크를 더 받을수 있다.
+3개부터는 reject 되는데, 아래의 옵션으로 처리 정책을 정할수 있다. 
+```
+setRejectedExecutionHandler(new CallerRunsPolicy()); 
+```
+
+CallerRunsPolicy 이외에 다른 옵션들도 있지만 설명 생략한다.
+CallerRunsPolicy는, reject 됐을때 Caller 가 처리하고 태스크는 지운다.
+
+높은 스루풋에 의해 MaxPoolSize 만큼 늘어난 pool은, 시간이 지나면 다시 CorePoolSize 줄어든다.
+사용되지 않는 풀이 정리 대상이 되는데, 대략 10초정도 안쓰면 정리되더라. (정확한 알고리즘은 모르겠다)
+
+### 2. TaskDecorator
+잘 쓰여진곳이 많아서 생략
+
+### 3. WaitForTasksToCompleteOnShutdown, AwaitTerminationSeconds
+가장 정리하고 쓰고싶던 옵션 이다.
+잘못(또는 대강) 설명된 곳이 많았다.
+
+아래 2개 옵션은 병렬적으로 처리된다고 하지만 막상 써보면 페어한 옵션이다.
+```
+// shutdown 될때 task가 모두 처리 될때까지 대기한다.
+// 이때 무한정 기다릴수 없으니 30초까지 기다린다.
+executor.setWaitForTasksToCompleteOnShutdown(true);  // 1
+executor.setAwaitTerminationSeconds(30);             // 2
+```
+
+예를들어 1번 옵션은 대략 "task가 모두 종료 될때까지 기다린다" 는 옵션이다.
+그런데 막상 1번 옵션만 설정하고 실험해보면 즉시 종료 되더라.
+
+2번 옵션도 확인 해본다.
+1번이 true 인 경우, task가 모두 종료 될때까지 무한정 기다릴수 없으니 30초 까지만 기다리겠다는 옵션이다. 
+타임아웃 용도로 보면 되는데, 기본값이 0이었기 때문에 즉시 종료 되었던것.
+사실상 1,2번을 같이 설정 해줘야 제대로 동작한다.
+
+
+
+

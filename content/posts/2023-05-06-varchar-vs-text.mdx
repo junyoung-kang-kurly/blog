@@ -1,0 +1,67 @@
+---
+title: "varchar vs text 비교"
+description: "둘다 가변길이로, Hello 저장하면 5바이트를 사용한다. (인코딩에 따라 다르긴 하다)TINYINT 등등 모두 가변길이라 문자열 저장하는데 저장공간을 염려할 필욘 없을것 같다.대략 b-tree 인덱스를 걸수 있냐 없냐 정도의 차이일듯 하다.text최대크기 65535 "
+date: "2023-05-06"
+published: true
+tags: []
+---
+
+## 저장공간 측면에서 비교
+둘다 가변길이로, Hello 저장하면 5바이트를 사용한다. (인코딩에 따라 다르긴 하다)
+TINYINT 등등 모두 가변길이라 문자열 저장하는데 저장공간을 염려할 필욘 없을것 같다.
+대략 b-tree 인덱스를 걸수 있냐 없냐 정도의 차이일듯 하다.
+
+
+text
+- 최대크기 65535 캐릭터로 고정
+- `2+c` 바이트 디스크공간을 차지한다. (c=character length를 말함. 길이를 저장하기 위해 varchar보다 1바이트 정도 더 쓸수 있다.)
+- 인덱스의 일부가 될수 없다. (근데 gin 인덱스같은걸 걸수 있긴 하다. b-tree 얘기일듯)
+
+
+varchar(M)
+- M 문자의 가변 최대크기
+- M은 1~65535 사이여야 함
+- 인덱스에 일부가 될수 있다.
+
+출처 :
+- [Difference between VARCHAR and TEXT in MySQL](https://stackoverflow.com/questions/25300821/difference-between-varchar-and-text-in-mysql/25301046#25301046)
+- https://chuckolet.tistory.com/71
+- https://stackoverflow.com/questions/25300821/difference-between-varchar-and-text-in-mysql/25301046#25301046
+
+## temporary table 사용시 비교
+그러나 성능면에서 차이가 나는경우가 발생할수 있다.
+temporary table 만들때 TEXT는 disk에서, varchar는 memory에서 처리한다고 한다.
+
+출처 : [Performance difference between Text and Varchar in Mysql
+](https://dba.stackexchange.com/questions/222176/performance-difference-between-text-and-varchar-in-mysql)
+
+temporary table는, group by 를 쓸때 사용된다고 한다.
+(이외에도 from 조인이라던지. 내부적으로 테이블을 만들어내고 쿼리하는 동작들이 있었는데 가물가물..)
+
+
+## 저장되는 구조 비교 (mysql, postgresql 다름) 
+
+또한 mysql 과 postgresql 은 좀 다를수 있다.
+> varchar도 이론적으로는 64KB까지 저장할 수 있지만
+다른 컬럼들과 모두 합쳐서 64KB가 한계이므로, 실제로는 64KB까지 저장할 수 없습니다. (테이블 구조에 따라 한계가 달라집니다.)
+또한 varchar 컬럼은 다른 컬럼들과 동일한 공간에 저장되고, text 컬럼은 별도의 공간에 저장되므로
+너무 큰 varchar 컬럼이 중간에 끼어있으면 레코드가 무거워져서 검색 성능에 영향을 미칠 수 있습니다.
+255자 이상 되는 값은 가능하면 text 컬럼을 사용하세요.
+단, 위의 얘기는 mysql에만 해당됩니다. postgresql의 경우 varchar와 text는 아무 차이도 없습니다.
+
+출처 : https://www.phpschool.com/gnuboard4/bbs/board.php?bo_table=qna_db&wr_id=201487
+
+
+
+### 결론
+mysql의 경우 저장 방식에 따른 차이가 있을것 같다.
+레코드 내 다른 컬럼들과 함께 저장되는 mysql은 확실히 고민이 필요해 보인다.
+그러나 postgresql 은 구분된 동작이 아닌듯 하다.
+이외에는 거의 비슷한것 같다.
+그럼에도 1차적으로 varchar 를 택하는게 안전해 보인다.
+
+1. 언제 b-tree 인덱스를 걸게 될지도 모르는데 text는 걸수 없음
+2. text는 항상 1바이트 정도 손해봄 
+3. text는 temparary table 을 쓸때 disk 에서 처리 함. 
+    3-1. 근데 이건 varchar(1000) 무리해서 메모리 로드를 시도 하는걸로 보이기도 하고.. 잘 모르겠다.
+4.  varchar의 길이 제한 거는게 제약처럼 보이기도 하지만, 일종에 validation 이기도 함.

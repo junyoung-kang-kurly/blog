@@ -1,0 +1,71 @@
+---
+title: "Spring Event pub->sub 객체는 참조로 처리된다"
+description: "예전에 이벤트에 거대 객체를 포함하여 발행하는것을 메모리 측면에서 부담스럽다 는 의견을 받은적이 있다.subscriber 의 인자는 publisher가 발행한 객체의 참조 만 갖고있어서 전혀 무관하다.(물론 이벤트에는 필요한것만 담기는게 유지보수성에는 더 좋지만..)매"
+date: "2023-11-07"
+published: true
+tags: []
+---
+
+예전에 이벤트에 거대 객체를 포함하여 발행하는것을 `메모리 측면에서 부담스럽다` 는 의견을 받은적이 있다.
+sub 에서 받는 인자는 pub가 발행한 객체의 `참조` 만 갖고있어서 전혀 걱정할 필요가 없다.
+질문자는 비동기에서 생성된 객체를 다른 쓰레드로 전달 하는 과정에서 무언가 오버헤드가 있을것만 같다는 뉘앙스의 질문 이었다.
+
+아래와 같은 코드로 같은 객체를 갖고있단것을 증명할수 있다.
+로그1과 로그2의 event객체는 같은 주소를 갖고있다.
+다른 쓰레드 간에도 메모리를 참조할수가 있다. (아마 stack 1개 더 쌓이는정도일듯 하다)
+```java 
+@Transactional
+public void pub() throws InterruptedException {
+    BigObject event = findBigObject();  // 대용량 객체가 초기화 되었고
+    log.info("로그1 : {}", event);
+    publisher.publish(event);
+}
+
+@Async
+@TransactionalEventListener
+public void sub(BigObject event) {  // 수신된 event가 다른 쓰레드에서 받으면서 미지의 오버헤드 걱정?
+    log.info("로그2 : {}", event);
+}
+```
+
+처음엔 허무맹랑한 질문이었는데, 왠지 계속 생각할수록 1%의 의심이 생겨버렸다.
+이러저러한 스프링 어노테이션이 섞여 있겠다, 어딘가에서 프록시로 동작하면서 우아하게 커플링을 차단해주는게 껴 든다던지?! 아니면 내가 모르는 무언가 부작용이 발생하는것은 아닐까?!
+1%가 찝찝해서 아래의 코드로 콜바이레퍼런스가 제대로 동작하는지 테스트 해봤다.
+
+```java 
+public void parnet() throws InterruptedException {
+    MyEvent event = new MyEvent();
+    event.setName("이벤트1");
+
+    log.info("1. {}",event)
+    log.info("2. {}", event.getName());
+    self.child(event);
+    Thread.sleep(1000);
+    log.info("4. {}", event.getName());  // sub에서 참조값을 받았다면 "이벤트2" 가 출력될 것이다.
+}
+
+@Async
+public void child(MyEvent event) {
+    event.setName("이벤트2");
+    log.info("3. {}",event)
+}
+```
+
+로그는 다음과 같이 기대하던대로 콜바이 레퍼런스로 동작하여 출력되었다.
+같은객체라서 setName이 다른 쓰레드에서도 변경할수 있었다.
+또한 주소값도 동일하게 나왔다
+
+```
+1. demo.scratchpad.async.PubService$MyEvent@2e895acb
+2. 이벤트1
+3. demo.scratchpad.async.PubService$MyEvent@2e895acb
+4. 이벤트2
+```
+
+
+### 결론
+너무 당연한 얘기지만 마법은 없다.
+@Async와 @TransaciotnalEventListner 인터널을 설명하면서 증명하기엔 너무 생산성이 떨어져서 생략..
+암튼 쓰레드간에는 메모리를 공유할수 있고, 객체는 참조로 전달되기 때문에 이벤트든 비동기든 heap memory를 걱정할 필요 없다.
+
+

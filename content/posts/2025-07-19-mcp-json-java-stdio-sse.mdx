@@ -1,0 +1,55 @@
+---
+title: "mcp json 구성 예시 (java stdio, sse)"
+description: "jar 파일 실행 예시 : docker 파일 실행 예시 : "
+date: "2025-07-19"
+published: true
+tags: []
+---
+
+## STDIO 
+
+
+jar 파일 실행 예시 : 
+
+```
+    "my-mcp-calculator": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "/Users/bonjugi/IdeaProjects/my-mcp-servers/my-mcp-calculator/build/libs/my-mcp-calculator-1.0.0.jar",
+        "--spring.profiles.active=stdio"
+      ]
+    }
+```    
+
+
+docker 파일 실행 예시 : 
+
+```
+    "my-mcp-calculator": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "bonjugi/my-mcp-calculator:latest",
+        "--spring.profiles.active=stdio"
+      ]
+    }
+
+
+```
+
+
+## SSE
+
+``` 
+	"my-mcp-calculator": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:8088/sse"
+      ]
+    }
+```

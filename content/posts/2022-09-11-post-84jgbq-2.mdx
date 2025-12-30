@@ -1,0 +1,55 @@
+---
+title: "인프콘 - 멀티 모듈 프로젝트 구조와 설계"
+description: "출처 : https&#x3A;//www.inflearn.com/course/infcon2022 모듈을 구분하는 기준 - B.C특징, 성격, 사이클에 맞게끔 경계를 나눠보기.4가지 그룹으로 나눌수 있다.위 4가지 모듈을 기반으로 나눴을때 멀티모듈 gradle 구조.{pr"
+date: "2022-09-11"
+published: true
+tags: []
+---
+
+출처 : https://www.inflearn.com/course/infcon2022 
+
+## 경계의 기준
+모듈을 구분하는 기준 - B.C
+![](/images/posts/bc63c675-107c-4e4d-91b9-ee1018c7d1e3-image.png)
+
+
+## 경계 나누기
+특징, 성격, 사이클에 맞게끔 경계를 나눠보기.
+4가지 그룹으로 나눌수 있다.
+
+![](/images/posts/35c0831e-4b8b-4094-b270-53192e3c0fd8-image.png)
+
+
+### 멀티모듈 gradle 구조
+위 4가지 모듈을 기반으로 나눴을때 멀티모듈 gradle 구조.
+&#123;project-boot&#125; 에 대해서는 jib 를 일괄 적용하는 모습도 볼수 있다.
+![](/images/posts/961729d6-ef44-4663-a5bb-e5def05d237e-image.png)
+
+### 이렇게 잘 나눴지만.. 빌드시간도 늘어난다.
+cloud-config 하나 바꿨더니 웹훅 동작 한다.
+![](/images/posts/2c74dfc9-4cb0-446d-9bd2-419d1c019ac7-image.png)
+
+## 프로젝트 분리하기
+boot 와 data(domain) 은 자주 바뀌므로 한 리포로 두고 나머지는 별도 리포를 둔 모습.
+이러면 빌드시간도 줄일수 있고, 경계가 명확해지면서 인터페이스 설계를 하게된다.
+![](/images/posts/ac18ca3c-bd88-4141-bc55-8852d62065c3-image.png)
+
+### DATA -> INFRA 관계 구현
+전체 흐름도
+![](/images/posts/e8db1c8a-2e01-451d-ab5f-9708fca04a57-image.png)
+
+클래스 다이어그램..
+맞는것 같지만 여전히 Too Many Connection 발생.
+![](/images/posts/42958bba-c480-4663-9e47-46f844b504ec-image.png)
+ 
+
+다음처럼 DB 접근을 Data 모듈에서 하도록 바꿔야한다.
+
+![](/images/posts/d26583aa-f8ed-4369-a770-e59698a0e127-image.png)
+
+
+
+
+
+
+

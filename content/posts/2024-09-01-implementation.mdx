@@ -1,0 +1,168 @@
+---
+title: "그레이들 모듈을 제작할땐 가급적 implementation을 활용하자"
+description: "나는 B를 만드는 라이브러리 개발자 이다.B를 납품하면 클라이언트 A가 B를 사용한다.B를 만들기위해 외부의존성 C를 필요로 한다.요약하자면 모듈 3개의 의존성 방향은 다음과 같다.A -> B -> C이제 B를 제작해보자.먼저 C 의존성을 추가하고,그리고 b로직을 완성"
+date: "2024-09-01"
+published: true
+tags: []
+---
+
+## 모듈 A->B->C 에 대한 가정
+
+나는 B를 만드는 라이브러리 개발자 이다.
+B를 납품하면 클라이언트 A가 B를 사용한다.
+B를 만들기위해 외부의존성 C를 필요로 한다.
+
+요약하자면 모듈 3개의 의존성 방향은 다음과 같다.
+- A -> B -> C
+
+
+이제 B를 제작해보자.
+먼저 C 의존성을 추가하고,
+```java
+implementation 'com.project.c:project-c:1.0'
+```
+
+그리고 b로직을 완성하자. 
+심심치않게 아래와같이 C를 반환하거나 인자로 받는 코드를 만들곤 한다.
+
+```java
+public class B {
+
+	public C b로직(C c) {
+    	// .. 
+        return new C();
+	}
+    
+}
+```
+
+개발이 완료됐으니 maven에 올리고, A에서는 B를 갖다쓰면 된다.
+이제 A에서는 의존성 문제가 발생한다.
+
+## Implementation은 A에서 C를 직접 의존할수 없다
+
+클라이언트 A에서는 B를 의존성 추가해서 `b로직` 메소드를 사용해야한다.
+하지만 인자와 반환값으로 사용되는 C를 모르기 때문에 컴파일이 실패한다.
+
+```java
+public class A {
+
+	public void doB() {
+    	B b = new B();
+        
+        // C를 활용하는 인자와 반환값은 모두 컴파일이 불가하다
+        C c = b.b로직(new C()); 
+    }
+}
+```
+
+
+B에서 C를 의존성 추가 할때 implemntation을 썼다면 C는 의존성 전이가 되지 않는다.
+
+## API는 A에서 C를 직접 의존할수 있다
+
+A에서 C를 쓸수 없는 이유는, `implementation` 은 runtimeClasspath로밖에 의존성 전이가 일어나지 않기 때문이다.
+compileClasspath로도 의존성 전이가 되는 `api`를 쓰면 해결된다.
+
+
+### implementation과 api의 의존성 전이 차이
+
+api모듈 -> core모듈 멀티모듈 구조를 예로 들어본다.
+core모듈에는 구아바 31버전을 쓰고있고, api는 구아바가 없다.
+```
+project(':core') {
+    dependencies {
+        implementation 'com.google.guava:guava:31.1-jre'
+    }
+}
+
+project(':api') {
+    dependencies {
+        implementation project(':core')
+        implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    }
+}
+```
+
+이제 의존성 트리를 보자. 
+api모듈의 runtimeClasspath, compileClasspath 밑에 core모듈이 추가되어있는것을 볼수 있다. 
+재밌는점은 구아바는 runtimeClasspath의 core모듈 하위만 들어있다.
+아무튼 이 덕분에 api모듈에서는 구아바를 쓸수 없지만, 런타임시점에 core모듈이 사용하는 구아바는 정상적으로 동작한다.
+
+![](/images/posts/48cb4dfa-e4d1-465d-898c-f510c1998c25-image.png)
+
+
+이제 core모듈에서 구아바 의존성을 api구성으로 바꾸고 다시한번 보자.
+구아바가 두 클래스패스의 core모듈 하위에 모두 들어있다.
+![](/images/posts/42f095e4-476c-4b32-948d-7b23717d9391-image.png)
+
+
+### 버전충돌 (작성중)
+
+api모듈 에서도 구아바 의존성을 추가하는 상황을 생각해보자.
+그리고 api모듈과 core모듈 둘다 구아바 버전이 다를수 있다.
+그럼 버전이 충돌하게 될수 있는데, 이땐 더 높은버전이 선택된다고 한다.
+- https://docs.gradle.org/current/userguide/dependency_resolution.html#sec:conflict-resolution
+
+하지만 직접 테스트해봤을땐 달랐다.
+내경우 api모듈에서 지정한 버전이 채택되었다.
+
+우선 api모듈에서 core모듈의 guava 31버전보다 더 낮은버전인 30버전으로 의존성을 추가했다.
+```java 
+implementation 'com.google.guava:guava:30.1.1-jre'
+```
+
+다시 트리를 보면 api모듈의 runtimeClasspath를 보면 31버전이 아닌 api모듈에서 명시한 버전이 들어왔다. 
+![](/images/posts/dc548f8b-6d6a-4f8c-bd31-16d19a368db6-image.png)
+
+
+IDE 문젠가 싶어서 명령어로 모든 클래스패스들을 찾아봤지만 전부 30버전으로 조정되어있다.
+```
+./gradlew :api:dependencies
+
+...
+
+runtimeClasspath - Runtime classpath of source set 'main'.
++--- project :core
+|    \--- com.google.guava:guava:31.1-jre -> 30.1.1-jre
+|         +--- com.google.guava:failureaccess:1.0.1
+|         +--- com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava
+|         +--- com.google.code.findbugs:jsr305:3.0.2
+|         +--- org.checkerframework:checker-qual:3.8.0
+|         +--- com.google.errorprone:error_prone_annotations:2.5.1
+|         \--- com.google.j2objc:j2objc-annotations:1.3
++--- com.google.guava:guava:30.1.1-jre (*)
+```
+
+
+
+결론은 아직은 잘 모르겠다. ㅎㅎ
+이문제는 좀더 확인이 필요해보인다. 
+
+> 아래는 나와는 다른 이슈이긴 한데
+비슷한 뭔가가 있을것 같아서 일단은 참고차 링크..
+(컴파일클래스패스는 적용이 안되고, 런타임클래스패스는 높은버전으로 적용된다고 함. 나는 둘다 안됨.)
+- https://chanwoodev.tistory.com/34
+
+
+
+
+### api구성의 단점
+
+여기까지 보면 api 구성이 더 좋아보일수 있겠다.
+하지만 편의성이 좋아지면 위험성도 커지는법.
+단점들이 있어서 오히려 implementation 을 기본적으로 사용하도록 권장하고 있다.
+
+api는 다음과 같은 단점들이 있다.
+
+1. api가 구아바에 직접 접근이 가능해진다. 결합도가 높아진다고 볼수 있다.
+2. 구아바가 버전을 올리면 api까지 재컴파일 해야한다.
+
+
+
+## 결론
+B모듈 제작자로써, C를 의존성 추가할때는 api 대신 implementation을 활용하자.
+의도적으로 C를 노출시키고 싶은경우도 있을수 있으나 대게는 implementation 부터 시작해보고, 고민해도 늦지 않다.
+
+버전충돌 문제는 api이든 implementation이든 차이가 없다.
+충돌해결전략을 좀더 확인해 봐야겠다.

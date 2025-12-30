@@ -1,0 +1,36 @@
+---
+title: "Homebrew 심볼릭 링크 걸어주기"
+description: "/opt/homebrew/bin/ 를 보면 다음과 같이 심볼릭 링크들이 걸려있다.여기서, 설치된 파이썬 정보도 볼수 있는데, 3.10 으로 설치되어있다.그래서 명령어도 python pydoc3.11 을 입력해야 했다.따라서 다음과 같이 심볼릭 링크를 걸어줘야 한다.그럼"
+date: "2023-09-08"
+published: true
+tags: []
+---
+
+
+/opt/homebrew/bin/ 를 보면 다음과 같이 심볼릭 링크들이 걸려있다.
+
+![](/images/posts/816e9de1-a38d-4225-8050-395896d313ce-image.png)
+
+여기서, 설치된 파이썬 정보도 볼수 있는데, 3.10 으로 설치되어있다.
+그래서 명령어도 python pydoc3.11 을 입력해야 했다.
+```
+lrwxr-xr-x    1 122d1533  admin    45  3  6  2023 python3.11 -> ../Cellar/python@3.11/3.11.2_1/bin/python3.11
+```
+
+
+따라서 다음과 같이 심볼릭 링크를 걸어줘야 한다.
+
+```
+ln -s -f /opt/homebrew/bin/python3.11 /opt/homebrew/bin/python
+```
+
+
+그럼 비로소 다음과 같이 링크가 걸리면서
+```
+lrwxr-xr-x    1 122d1533  admin    45  3 22 13:12 pydoc3.10 -> ../Cellar/python@3.10/3.10.10_1/bin/pydoc3.10
+lrwxr-xr-x    1 122d1533  admin    44  3  6  2023 pydoc3.11 -> ../Cellar/python@3.11/3.11.2_1/bin/pydoc3.11
+lrwxr-xr-x    1 122d1533  admin    28  9  9 00:51 python -> /opt/homebrew/bin/python3.11
+```
+
+이렇게  python명령어로 3.11 버전을 쓸수 있게 된다.
+![](/images/posts/c5564849-2478-49c4-8ec0-a0b90b9c437b-image.png)

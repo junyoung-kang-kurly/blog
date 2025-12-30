@@ -1,0 +1,62 @@
+---
+title: "Bean Validation 과 jetbrains annotations"
+description: "Bean Validation? Jakarta Bean Validation 은 표준 명세이다. Hibernate validator 는 구현이다. reference implementation이라 묶어서 생각해도 좋다.  대표적으로 @NotNull 같은 어노테이션이 있다. "
+date: "2025-02-08"
+published: true
+tags: []
+---
+## Bean Validation?
+Jakarta Bean Validation 은 표준 명세이다.
+Hibernate validator 는 구현이다. 
+reference implementation이라 묶어서 생각해도 좋다.
+
+대표적으로 @NotNull 같은 어노테이션이 있다. 
+Spring web 사용자라면 익숙한 어노테이션 이다. 
+@Valid 어노테이션을 달아주면 자동으로 검사가 동작한다.
+객체그래프를 타며 복잡한 객체도 검사할수 있다.
+
+spring 이 없더라도 Validator 인터페이스를 통해 검사할수 있도록 구현 되어있다.
+spring 은 dto에 값을 바인딩 하면서 검사를 한 후 문제 발생시 MethodArgumentNotValidException 를 발생시키도록 잘 추상화 한 것이다.
+
+@Email, @CreditCardNumber 같은것도 존재한다.
+이미 생성된 객체의 포맷이나 유효성을 검증하는데 적합하다. 
+
+
+## 다른 null 어노테이션
+Bean Validation 에도 @NotNull 이 있다. 
+그렇다 보니 아래와 같은 여타 다른 도구와 헷갈릴수 있다.
+
+예를들어...
+1. JetBrains @NotNull ...
+2. Lombok @NonNull ...
+3. Jespecify @Nullable, @NonNull, @NullMarked, @NullUnmarke
+
+위 도구들은 주로 개발자를 위한 정적분석 도구, 그리고 null 안정성 체크 도구에 더 가깝다.
+예를들어 `void setName(@NotNull String name)` 메소드에 `setName(null)` 같이 사용하는 경우 idea 에서는 경고를 보여준다.
+Intellij는 다른 어노테이션들도 인식하고 추가도 가능하다.
+
+> IntelliJ IDEA recognizes popular Java annotations and takes them into account when analyzing code
+- https://www.jetbrains.com/help/idea/annotating-source-code.html#contract-annotations
+
+lombok 같은 경우 byte code instrumentation 으로 null 들어왔을때 예외처리를 추가해 주기도 한다.
+
+
+## 종합
+
+검사 시점, 바이트코드 조작여부, IDEA 정적 분석 기준으로 나눌수 있겠다.
+
+bean validation은 정적분석을 지원하지 않는다.
+런타임에 Validation 인터페이스로 포맷과 유효성 검사하는 도구다.
+큰 특징은 객체가 이미 생성이 된 후에 검사를 한다는 것이다.
+사전,사후,불변식 용도로 쓰기에는 적합해 보이진 않다. 
+사전식이나 불변식 성립이 안된다면 해당 메소드를 완성조차 태울수조차 없어야 한다.
+
+
+반면 나머지는 컴파일 시점에 예외로직을 추가해주거나, IDEA 에서 힌트를 주는 정적 도구에 가깝다.
+객체 생성과 무관하게 인라인 검사를 담당한다.
+불변식을 쓰기에는 복잡한 검증로직을 쓸수 있는지는 모르겠다.
+
+둘다 사전,사후,불변식 용도로 쓰기엔 아쉬운면이 있어보인다.
+일단은 런타임 시점의 검사기인지, 컴파일타임 검사기인지로 구분해서 쓰는게 좋을것같다.
+Specify는 좀더 주목하고 있어야겠다.
+

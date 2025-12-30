@@ -1,0 +1,238 @@
+---
+title: "CQS 에 대해"
+description: "마틴파울러의 CommandQuerySeparation 을 읽고.마이어의 저서에서 만들어졌다 한다.기본적인 아이디어는 다음과 같다.쿼리 : 결과 반환, (사이드이펙트 없음)명령 : 시스템 상태를 변경. 값을 반환치 않음. (command는 많은 문맥을 지니므로, modi"
+date: "2023-11-09"
+published: true
+tags: []
+---
+CQS를 잘못 적용하여 문제점이 발생된 안티패턴이 된 사례를 소개하려고 한다.
+
+
+## 마틴파울러의 CQS 요약
+
+[마틴파울러의 Command Query Separation](https://martinfowler.com/bliki/CommandQuerySeparation.html) 을 읽고.
+
+
+마이어의 저서에서 만들어졌다.
+기본적인 아이디어는 다음과 같다.
+- 쿼리 : 결과 반환, (사이드이펙트 없음)
+- 명령 : 시스템 상태를 변경. 값을 반환치 않음. (command는 많은 문맥을 지니므로, modifiers 를 선호)
+
+쿼리의 사이드이펙트가 없어서 자신있게 쿼리할수 있고, 언제든 순서도 무시할수 있게됨을 의미한다.
+반면 수정은 더욱 조심할수 있다. 
+이터레이터에서 next 보다는 advance + current 를 선호한다.
+next는 다음 항목을 주면서도 iterator 가 증가한다.
+
+경험상 c++의 const 사용하는 개발자들은 좋은 개발자였다. 
+
+> c++ const를 잘 몰라서 [요 블로그를 참고했다](https://easycoding91.tistory.com/entry/C-%EA%B0%95%EC%A2%8C-const-%EC%9C%84%EC%B9%98%EC%9D%98-%EC%9D%98%EB%AF%B8%EC%99%80-%EC%82%AC%EC%9A%A9-%EB%B0%A9%EB%B2%95)
+변수로써는 코틀린의 val을 생각하면 될것 같다. (재할당 불가 immutable)
+메서드 뒤에 붙이면 해당 메서드의 모든 멤버변수가 immutable. 자바 레코드나 코틀린의 데이터 클래스 정도? 
+> 사이드이펙트를 억제하는데 신경을 많이쓰는 모습이다.
+> 내 이해가 틀렸다면 양해 부탁드린다. (본 글을 이해하는데 몰라도 상관없는 주제이다)
+
+주요 내용을 요약하자면 side-effect 를 억제할수 있고, 많은경우 잘 작동하는 원칙이지만 stack의 poping 과 같이 적용할수 없는 경우도 있으니, CQS는 유용한 관용구 라고 설명하고 있다.
+
+
+## 맹목적인 CQS 적용의 부작용
+
+많은 글에서 command 는 void 이어야 함을 강조하곤 한다.
+나 역시 command는 반환유형이 void 인 것이 이상적이라는 것에는 동의한다.
+
+### 문제의 코드
+다만 void 에 대한 강박 때문인지 더 중요한것을 놓치고 있는것 같다.
+예를들어 이런 코드를 요즘 정말 많이 접하곤 한다.
+
+컨트롤러
+```java 
+@PutMapping
+Response<OrderDto> cancel(Req req) {
+	OrderDto orderDto = orderService.find(req);  // (1) 취소 대상 쿼리
+	orderService.cancel(orderDto);  // (2) 취소 커맨드. void라 반환값 없음
+	OrderDto orderDtoAgain = orderService.find(req.getId());  // (3) 변경된 상태를 다시 쿼리하여 반환
+	return new Response(orderDtoAgain);
+}
+```
+> 1+2+3 까진 많이 못봤고, 대부분 1+2 또는 2+3 조합한 형태를 한번쯤은 봤을 것이다.
+
+
+서비스는 요렇게 생겼을 것이다.
+
+```java 
+OrderDto find(Req req) {
+	return orderRepository.find(req);
+}
+
+void cancel(OrderDto dto) {
+	Order order = orderRepository.find(req.getId); 
+    order.cancel();
+}
+
+OrderDto find(Long id) {
+	return orderRepository.find(id);
+}
+```
+
+위 코드는 몇가지 문제점이 있다.
+
+#### 문제점 1. 조회 쿼리가 3번 발생한다
+(1), (2), (3) 의 orderService 내에서는 `findById(id)` 가 있다.
+영속성 컨텍스트가 매번 없기 때문에 각각 쿼리가 발생한다.
+개인적으로 3n 정도는 그냥 다 O(n) 으로 취급하는 편이지만, RDB 의 3n 얘기가 다르다.
+DB 케파는 물론 API 레이턴시도 고려해야 한다.
+
+
+#### 문제점 2. atomic 하지 못하다
+반환되는 `Response<OrderDto>` 가 cancel 했을 당시의 order와 동일하지 않다.
+(2)와 (3) 사이에 다른 트랜잭션으로 추가로 수정되었을수도 있고, read db 의 복제가 지연되어 (2)가 아직 반영되지 않은 과거데이터를 조회했을수도 있다.
+DB의 atomic 얘기가 아니라, 논리적으로 atomic하지 않단걸 말하고 싶다.
+find는 질의 일 뿐, 명령의 결과나 이벤트가 될수 없다.
+
+
+#### 문제점 3. 컨트롤러가 서비스에 지나치게 의존하게 된다.
+`Tell don't asks` 위배 한 모습으로, 서비스에 위임하지 못하고 컨트롤러에서 서비스를 구체적으로 제어하고 있다. (높은 커플링)
+서비스는 퍼블릭 메소드가 많아지고 각각은 응집도 없이 그대로 노출된다. 
+어플리케이션 서비스 메소드는 재사용성 보다는 유즈케이스인 `취소한다` 를 최적화해서 프로시저를 구현하면 된다.
+애초에 cancel(Req) 메세지가 컨텍스트를 포함하고 있어 재사용이 거의 불가능하다.
+`쿼리 + 취소 + 쿼리` 프로시저를 따로 주는 이유가 각각이 재사용성을 고려했기 때문 이라면, 맨앞의 쿼리는 재사용이 불가능할 확률이 매우 높다.
+그 뒤의 취소와 쿼리는 도메인 모델로 처리 가능한 로직을, 굳이 래핑하여 public 서비스 메소드를 뽑아내서 내부를 모두 드러나게 할 필요가 없다.
+
+위 상황이 아니라면 더 많은 문제들도 있다.
+클라이언트의 사용성이 나빠진다던지, [Thread safe 달성이 어렵다](https://en.wikipedia.org/wiki/Command%E2%80%93query_separation#Limitations) 던지..
+
+
+### 제안하는 코드
+
+먼저, 문제의 코드가 왜 그렇게 되었는지 근거를 보면 다음과 같다.
+- (1)은 쿼리 이기 때문에, (2) 커맨드에 섞이면 안되기 때문
+- (2)는 명령 이기 때문에, (3) 쿼리에 섞이면 안되기 때문
+
+나는 (1) (2) (3)은 하나이고 분리될수 없는 1개의 프로시저라고 생각한다.
+그냥 합쳐서 이렇게 만들면 모든 문제점이 해결된다.
+
+```java 
+@PutMapping
+Response<OrderDto> cancel(Req req) {
+	OrderDto orderDto = orderService.cancel(req);
+	return new Response(orderDto);
+}
+```
+
+서비스 코드도 마저 보자.
+
+```java
+OrderDto cancel(Req req) {
+	Order order = orderRepository.find(req);  // (1) is not query
+    order.cancel();  // (2)
+    OrderDto.from(order);  // (3) is not query
+}
+```
+
+너무 간단하고 좋다.
+그럼에도 문제의 코드처럼 되는 이유는 내가 제안한 코드는 CQS 스럽지 않기 때문 일 것이다. 
+나는 CQS 의 핵심을 `커맨드와 쿼리를 구분하여 side-effect를 회피` 에 집중한다면 거의 지켰거나 만족하고 있다고 말하고 싶다.
+
+cancel()은 명령 프로시저 1개이다.
+그 안에 (1)과 (3)이 쿼리이기 때문에 안된다고 문제삼을수 있지만, cancel() 프로시저의 절차일 뿐이다.
+- (1)은 `수정하기 위한 엔티티를 컬렉션에서 꺼내오는 과정` 으로 쿼리가 아니다. 문제의 코드와 달리 OrderDto 를 쓸 필요 없이 그냥 Order를 꺼내오도록 바뀌었다.
+- (3)은 처음 문제의 코드와 달리 다시 find 해오는 과정이 없어졌다. 말할필요도 없이 쿼리가 아니다.
+
+
+그리고 cancel() 이 void가 아닌 OrderDto 를 반환하고 있는것을 문제삼을수 있다.
+이것은 명령이 잘 수행되었는지에 대한 `영수증 or 이벤트 or 처리결과 or 피드백` 같은것이다.
+OrderDto 에 canceledAt 이나 updatedAt 이나 상태를 포함하고 있을것이다.
+네이밍을 문제삼는다면, Cancelation 타입을 반환하면 그만이다.
+여전히 Cancelation 내부에는 명령을 내린 직후 관측하고싶은 값 모든걸 포함할수 있다.
+이부분은 설득이 다소 부족할수 있다.
+그렇다면 나는 void 강박을 버리자고 하고 싶다.
+자세한건 나머지 다음 글들을 참고해주시기를 바란다.
+
+
+
+## CQS의 핵심은 side-effect 제어
+
+마틴파울러나 마이어가 말한 CQS의 핵심은, 조회만 했는데도 내부 상태가 변경되는 side-effect를 피하기 위함 이라고 생각한다.
+CQS로 인한 이슈의 예시는 대부분 `조회 했을 뿐인데 내부상태가 바뀐` 케이스에 대해서만 다루고 있지, 명령의 반환이 void가 아닐때에 대한 이슈는 다루고있지 않다.
+
+그럼에도 "명령은 반드시 void 이어야만 `순수한 CQS` 라고 할수있다" 고 하면 반박할수는 없다.
+하지만 많은경우 프로시저는 void로 퉁칠수가 없기 때문에 쉽게 깨지는 원칙임을 인지해야 한다.
+
+CQS를 매우 훌륭한 원칙이다.
+코드리뷰중, GET 요청인데 내부에 상태가 바뀌는 케이스가 있다면 "CQS가 필요할것 같아요" 라고 한마디 만으로 적절한 피드백을 줄수 있다.
+그런데 듣는이가 void 강박에 빠져 문제의 코드가 되는 경우를 최근 자주 목격했다. 
+그렇지 않은 코드도 문제의 코드로 리팩토링을 하곤 한다.
+이런게 반복되지 않았으면 하는게 내 바램이다.
+
+
+#### POST method 도 void가 아니다.
+void 강박을 깨기 위한 사례를 추가하려 한다.
+
+POST는 최소한 id를 반환 해야한다.
+부가적으로도 다음과 같은것들을 기대할수도 있다.
+- 생성시각과 버전을 반환 해야한다.
+- 입력한게 정확하게 입력되었는지를 반환해야 한다. (시스템에 의해 보정된 입력이나 추가 속성이 있을수도 있다.)
+- 반환된 id와 상세페이지를 알수있는 링크를 반환해야한다.
+- 좀 억지스럽겠지만 http status, header도 반환하고있다. 
+
+이것들은 CQS 위반 이라기 보다는 요청자의 명령을 잘 처리했다는 피드백일 뿐이다.
+POST의 결과로 받은 id를 이용해서 GET을 한번더 호출하면 된다는 의견도 있지만, 다시 GET 했을땐 이미 다른 상태가 되어있을수 있다.
+GET은 질의 일 뿐, 영수증이나 이벤트가 아니기 때문이다.
+
+
+## 부록 - 그렇다면 쿼리란?
+위에서 `업데이트 하기 위해 컬렉션에서 엔티티를 꺼내오는것` 은 쿼리가 아니라고 했다. 
+내가 생각하는 쿼리는, `별도의 read model 을 반환하는 형태`가 쿼리 라고 생각한다.
+
+다음은 서비스 코드 예시이다.
+```java 
+public OrderDto cancel(Req req) {
+	OrderDetail orderDetail = orderDetailRetreiver.find(req); // (1) query
+    Order order = orderRepository.find(orderDetail.getId());  // (2) is not query
+    order.cancel();    // (3) command (void)
+    return OrderDto.from(order); // (4) is not query
+}
+```
+
+(1)은 쿼리 이다.
+OrderDetail은 read model 이고, OrderDetailRetreiver는 OrderDetail을 조회할수 있는 추상화된 repository 같은것 이다.
+구현은 내부의 denormalized 테이블에서 꺼내오거나 비추이긴 하지만 여러 테이블을 join 해서 가져올수도 있다. 또는 RDB가 아니거나 외부 RPC로부터 가져오는 형식 일수도 있다.
+특징은 반환 타입이 Order는 아니라는 점이다.
+> 반환 타입이 Order가 아니면 OrderRepository 를 써선 안된다는것은 아니다.
+Order 그 자체를 투영한 OrderDto 를 반환한다던지, Order의 일부인 OrderItems 를 반환 한다던지 Order 객체에 대한 집계를 하는정도는 OrderRepository가 취급할수 있다. 
+취급해도 되는지 여부는 어느정도 관용적인 부분이다.
+
+
+(2)는 쿼리가 아니다.
+이는 findBy(req) 와 같이 되더라도 마찬가지이다.
+위에서 줄곧 얘기해온 `엔티티를 수정하기 위해 컬렉션에서 꺼내오는 것` 이기 때문이다.
+
+(3)은 커맨드 이다.
+맨처음 컨트롤러가 호출하는 서비스 메소드들이 void 여선 안되는 이유들을 설명했지만, 여기선 void 이어도 단점이 없기 때문에 적용 했다.
+원칙을 적용해도 단점이 없거나 장점이 크다면 수용할수 있다.
+
+(4)는 당연히 쿼리가 아니다.
+하지만 orderRepository 에서 다시 find 해서 반환하는 방식이라면 쿼리다.
+cancel 프로시저를 구현하기 위한 절차로써 엔티티를 업데이트하기위해 꺼내온것이 아니라, 전혀 관계없는 (원자적이지 않은) 별도의 조회이기 때문이다.
+
+
+## 결론
+CQS의 핵심은 side-effect를 회피하기 위한것이다.
+command 에서 void에 집착하지 말자. (물론 void가 이상적이다.)
+차라리 쿼리에서 부작용을 억제하는데 노력하자.
+마틴도 CQS는 유용한 관용구라고 표현한다. (물론 여기서도 예시를 stack pop을 비유함. command void가 아니라)
+쿼리가 부작용이 있을것 같다면 드러나게끔 설계하자. 차라리 명령형으로 오퍼레이션명을 바꿔라. (메소드던 uri던)
+`쿼리`와 `업데이트를 위해 컬렉션에서 엔티티를 꺼내온것`을 구분하자.
+
+
+
+
+  
+
+
+
+
+
+
+  
+
+

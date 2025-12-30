@@ -1,0 +1,37 @@
+---
+title: "ByteBuffer 공부해보기"
+description: "ByteBuffer는 단점이 많다.내부 구조도 알아야하고, immutable 하지도 않고, Thread-safe 하지도 못하다.이런 자료형을 주고받는 코드를 작성하면 실수를 유발할수 있겠다.그것도 아주 치명적이고 찾기도 어려운..도대체 무슨장점이 있어서 KmsClien"
+date: "2023-03-05"
+published: true
+tags: []
+---
+ByteBuffer는 단점이 많다. 내부 구조를 이해해야 하고, Immutable하지도 않고, Thread-safe하지도 않다. 이런 자료형을 주고받는 코드를 작성하면 실수를 유발할 수 있다. 그것도 아주 치명적이고 찾기도 어려운..
+
+그런데 도대체 무슨 장점이 있어서 KmsClient는 이런 자료형을 반환하도록 설계했을까?
+
+ByteBuffer를 사용하는 이유는 다음과 같다:
+
+- **자료형 변환**  
+  ByteBuffer를 사용하면 byte 배열을 다른 자료형으로 변환할 수 있다. ByteBuffer에서 제공하는 `get()` 메서드를 사용해서 원하는 자료형으로 데이터를 읽을 수 있다.
+
+- **Direct Memory Access**  
+  ByteBuffer는 JVM의 메모리 공간이 아닌 직접적인 메모리에 접근할 수 있는 Direct Buffer를 제공한다. 이는 NIO(non-blocking I/O) 기반의 네트워크 프로그래밍에서 빠른 입출력을 위해 많이 사용된다.
+
+- **Byte Order**  
+  ByteBuffer를 사용하면 Big-endian이나 Little-endian 같은 바이트 순서를 지정할 수 있다. 이는 네트워크 프로토콜 같은 특정한 데이터 형식과 호환되는 바이트 순서를 사용해야 할 때 유용하다.
+
+- **Thread-Safe 사용법**  
+  ByteBuffer는 기본적으로 Thread-Safe하지 않지만, `slice()`, `asReadOnlyBuffer()`, `duplicate()` 같은 메서드를 사용해서 새로운 ByteBuffer 인스턴스를 생성하면, 다중 스레드 환경에서도 안전하게 사용할 수 있다. 이 경우 원본 버퍼의 상태를 공유하는 대신, 독립적인 버퍼를 사용하게 된다.
+
+---
+
+### position, limit, mark?
+
+- **position**  
+  position은 현재 ByteBuffer에서 읽거나 쓰기가 시작될 위치를 나타낸다. 즉, ByteBuffer에서 읽거나 쓰기를 할 때는 position 값부터 시작된다.
+
+- **limit**  
+  limit는 ByteBuffer에서 읽거나 쓸 수 있는 데이터의 한계치를 나타낸다. limit 값은 ByteBuffer를 생성할 때 지정되며, 데이터를 쓸 때는 limit 값까지만 쓸 수 있다. 또한, 데이터를 읽을 때도 limit 값까지만 읽을 수 있다.
+
+- **mark**  
+  mark는 ByteBuffer에서 position 값을 저장하는 역할을 한다. `mark()` 메서드를 호출하면 현재의 position 값을 mark 값으로 설정할 수 있고, `reset()` 메서드를 호출하면 mark 값으로 position 값을 변경할 수 있다.

@@ -1,0 +1,79 @@
+---
+title: "MySQL vs MongoDB 성능 비교"
+description: "유튜브 채널 큰돌의터전 영상을 보면서 정리 했다.MongoDB와 MySQL 누가 더 빠를까? wired tiger engine (3.2 부터)1\\. snappy 블록 압축 알고리즘 (인덱스와 데이터를 압축해서 관리)2\\. BSON 파일은 JSON 처럼 보이지만 디스크 "
+date: "2023-02-14"
+published: true
+tags: []
+---
+
+
+유튜브 채널 큰돌의터전 영상을 보면서 정리 했다.
+[MongoDB와 MySQL 누가 더 빠를까?](https://www.youtube.com/watch?v=3axR2Onz1nU) 
+
+
+## MongoDB 특징 2가지
+wired tiger engine (3.2 부터)
+1. snappy 블록 압축 알고리즘 (인덱스와 데이터를 압축해서 관리)
+2. BSON 파일은 JSON 처럼 보이지만 디스크 사용량을 줄이기 위해 직렬화되어 바이너리 파일로 저장
+
+커넥션 수도 MongoDB 압승. (65000개라니..)
+![](/images/posts/680b9051-1a94-4e71-a4f2-73335ee032d0-image.png)
+
+요약 : 
+json 도큐먼트를 저장하고 있지만 압축과 직렬화로 훨씬 적은공간과 빠른 성능을 처리한다
+MongoDB가 더 많은 커넥션수를 이용한다. (영상 맨 뒤에서 나오지만 MongoDB가 더 많은 CPU를 사용 한다고 한다)
+
+
+## MongoDB와 MySQL 의 비교 
+
+2021년에 공개된 따끈한 논문의 내용을 큰돌님이 정리 해 주신것.
+
+![](/images/posts/b1d63e2c-0989-4140-b58c-13fa5a9bf80d-image.png)
+
+
+
+
+테스트 환경은 다음과 같다.
+1. Docker19, 
+2. Compose
+3. 우분투20
+4. Apache Jmeter 5.3
+5. 테스트 데이터를 생성하고 정리하는 오버헤드 없이
+
+
+### 1. 읽기, 쓰기 성능
+![](/images/posts/0e7006ce-7825-476e-9549-b950f814dcc3-image.png)
+
+#### 그림 9 :
+id로 읽는건 처음부터 2배 가까이 속도 차이가 난다.
+
+#### 그림 10 :
+그 아래에 인덱스가 없는 필드 읽기는 좀 특이하다. 
+인덱스 없이 대량의 레코드를 풀스캔 하는 케이스는 그냥 재미로만 보려 했다.
+레코드가 적을때는 비슷하다가, MySQL 은 지붕을 뚫고 나간다.
+그런데 특이한건 MongoDB 는 계속 30ms대에 머무르고 있단 것이다. 
+
+#### 그림 7 : 
+쓰기 성능도 MongoDB 비교적 상당히 준수하다.
+MongoDB가 4배 이상 빠르다.
+
+
+#### 그림 8 : 
+2개의 연결된 테이블에 저장하는 속도 비교이다.
+MongoDB가 7배 빠르다.
+
+
+### 2. 업데이트 삭제 성능
+![](/images/posts/116cc922-ee05-41e1-87c2-ad4ba01c4721-image.png)
+
+#### 그림 13 : 
+ID 로 업데이트 하는건 MySQL 이 압승이다.
+유일하게 MySQL 이 이기는 케이스기도 하다.
+MySQL 이 2배 가량 빠르다.
+update 성능은 PostgreSQL과 비교할때도 한참 빠르더니.. 
+1건 업데이트 성능은 MySQL 이 최고 인가보다.
+
+#### 그림 14 : 
+노인덱스 필드 storeId 로 쿼리.
+1~10,000 까진 비슷하다가 100만 부터는 또 벌어지기 시작한다.
+MongoDB가 2배 빠르다.

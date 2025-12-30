@@ -1,0 +1,53 @@
+---
+title: "mongodb vs postgresql 벤치마크"
+description: "아래 페이지를 발견했다.https&#x3A;//www.enterprisedb.com/performance-benchmark-postgresql-vs-mongodb세심한 테스트 조건과, 여러 케이스들을 벤치마크했다.결론부터 말하자면 대체로 pg가 우세하게 나왔다.옛날에 "
+date: "2024-05-05"
+published: true
+tags: []
+---
+
+아래 페이지를 발견했다.
+- https://www.enterprisedb.com/performance-benchmark-postgresql-vs-mongodb
+
+세심한 테스트 조건과, 여러 케이스들을 벤치마크했다.
+결론부터 말하자면 대체로 pg가 우세하게 나왔다.
+옛날에 단순 insert 속도를 로컬에서 벤치마크 한적 있었다.
+당시에도 postgresql 이 mongodb 보다 압도적으로 빨랐기 때문에 어느정도 예상은 한 결과였다.
+
+pg에 우세한 방식으로 진행됐을까 의심이 될법도 하지만, 본문에는 가급적 프로덕션 환경과 유사하게 셋팅하여 진행했다고 한다. 
+테스트 조건들도 매우 세세하게 적어줬기 때문에 신뢰가 간다.
+
+본 글은 결과 요약전달이 목적이고, 자세한 내용은 위 페이지의 pdf를 참고하길 바란다.
+
+
+### OLTP 벤치마크
+
+아래는 OLTP 벤치마크 결과이다.
+놀랍게도 OLTP 에서 PG 가 압도적으로 빠르다.
+
+![](/images/posts/0d70f0f0-160d-40c4-ad2d-a3e0468d22ef-image.png)
+
+
+### OLAP 벤치마크
+
+아래는 OLAP 벤치마크 결과이다. 
+PG 가 좀더 우세할거라고 예상하긴 했었다. QueryA 가 22% 느렸던걸 제외하면 모두 PG가 우세했다.
+![](/images/posts/839cf2d4-b42c-452d-9037-f5be13472961-image.png)
+
+
+Query A 가 느린 이유가 궁금해서 쿼리 첨부.
+근데 플랜이라도 봐야 왜느렸는지 알수있을것같다.
+![](/images/posts/7310cfeb-d953-4154-957a-f19aac2c0491-image.png)
+
+
+### 소감
+
+
+결론은, 성능을 위해 monbodb를 채택하진 않게 될것같다.
+게다가 RDB를 쓰고있는데, documentdb나 mongodb atlas를 추가도입 하는 경우라면 비용적으로도 이점이 없어보인다.
+mongodb의 뚜렷한 장점이라면 스키마리스정도가 되지 않을까?
+
+
+
+
+

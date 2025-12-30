@@ -1,0 +1,36 @@
+---
+title: "Spring Data JPA 강의 새로웠던것 (낙서장)"
+description: "Pageable 인터페이스를 인자로 받을수 있고 실제로는 PageRequest 구현체를 받는것.PageRequest.of 로도 생성이 가능하다./members?page=0&size=3&sort=id,desc&sort=username,desc 와 같은 형식으로 전달 받을"
+date: "2021-12-28"
+published: true
+tags: []
+---
+
+# Web 확장 - 페이징과 정렬
+
+Pageable 인터페이스를 인자로 받을수 있고 실제로는 PageRequest 구현체를 받는것.
+PageRequest.of 로도 생성이 가능하다.
+
+
+`/members?page=0&size=3&sort=id,desc&sort=username,desc` 와 같은 형식으로 전달 받을수 있다.
+page 는 zero-based 이다.
+one-based 로 바꿀순 있으나 약간의 버그가 있다.
+> spring.data.web.pageable.one-indexed-parameters 를 true 로 설정 가능
+
+
+따라서 그냥 zero-based 로 스펙을 정의하는것을 추천.
+
+
+### @PageableDefault
+다음과 같이 기본값 설정도 가능
+```
+@PageableDefault(size = 12, sort = “username”, direction = Sort.Direction.DESC)
+```
+
+### Page.map
+나름 재밌는 기능인데 spring data jpa 버전이 높아야 되나보다. 
+현재 우리 프로젝트에선 없는 API 임.
+```
+ Page<MemberDto> pageDto = page.map(MemberDto::new);
+```
+

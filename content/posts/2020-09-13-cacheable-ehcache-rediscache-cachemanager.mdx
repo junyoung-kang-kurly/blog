@@ -1,0 +1,52 @@
+---
+title: "Cacheable, EhCache와 RedisCache 둘다 사용하기 (CacheManager)"
+description: "@Cacheable 의 구현체는 여러가지가 있다. 마침 EhCache 와 Redis 2개를 같이 써야 했다.이럴땐 각각의 CacheManager 를 구현하여 빈으로 등록 해두고, @Cacheable 어노테이션의 cacheManager 옵션에 해당하는 이름을 입력하면 입"
+date: "2020-09-13"
+published: true
+tags: ["Cache", "ehcache", "redis"]
+---
+
+## 1. Overview
+@Cacheable 의 구현체는 여러가지가 있는데, 마침 EhCache 와 Redis를 같이 써야 했다.
+이럴땐 
+1. 각각의 CacheManager 를 구현하여 빈으로 등록 해두고, 
+2. @Cacheable 어노테이션의 cacheManager 옵션에 해당하는 이름을 입력 하면 
+3. 입력한 CacheManager가 바인딩 된다.
+
+
+## 2. 코드작성
+### 2.1 redisCacheManager 빈과 ehCacheManager 빈을 등록
+
+```
+// redis cache manager 빈 등록
+@Bean(name = "redisCacheManager")
+public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+  return RedisCacheManager.builder(connectionFactory).build();
+}
+
+// redis cache manager 빈 등록
+@Bean(name = "ehCacheManager")
+public CacheManager cacheManager() {
+  return new EhCacheManager();
+}
+```
+
+### 2.2 @Cacheable 사용시 cacheManager 옵션에 사용되었으면 하느 CacheManager 이름을 써주면 된다.
+
+```java
+@Cacheable(cacheNames= "cacheName1", key = "'myServiceCacheName1::'+#id", cacheManager = "redisCacheManager")
+public MyDto find(Integer id){
+  return new MyDto(id);
+}
+```
+> key 를 생략하면 메소드명::파라미터값 으로 자동 등록 된다.
+> 하지만 메소드 이름을 리팩토링 하게되면 키도 바뀌게 되기 때문에 가급적 명시하도록 하자.
+
+
+## 3. Conclusion
+
+로컬캐시, 레디스캐시 둘다 설정할수 있는 CacheManager 설정방법을 알아봤다.
+@Cacheable 에는 cacheManager 외에 다양한 옵션설정이 가능하다.
+[링크](https://jaehun2841.github.io/2018/11/07/2018-10-03-spring-ehcache/#spring-cache-annotation) 가 참 잘되어있으니 참고
+
+

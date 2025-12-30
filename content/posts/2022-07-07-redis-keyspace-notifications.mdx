@@ -1,0 +1,27 @@
+---
+title: "Redis Keyspace Notifications"
+description: "참고1 (영문). https://redis.io/docs/manual/keyspace-notifications/ 참고2 (한글). https://velog.io/@ma2sql/%EB%B2%88%EC%97%AD-Redis-Keyspace-Notifications  참고2"
+date: "2022-07-07"
+published: true
+tags: ["Event", "notifications", "redis", "subscribe"]
+---
+참고1 (영문). https://redis.io/docs/manual/keyspace-notifications/
+참고2 (한글). https://velog.io/@ma2sql/%EB%B2%88%EC%97%AD-Redis-Keyspace-Notifications
+
+참고2는 참고1을 번역해주신분의 블로그 링크를 보면서 전반적으로 느낀점은, 시스템에 깊게 사용하기 어렵다는 점이다.
+다음과 같은 치명적인 단점들이 있다.
+
+### Fire and forget 
+레디스 서버는 이벤트를 pub 한 이후로는 관심이 없다.
+예를들어 클라이언트가 재기동 중 이었다면 해당 이벤트는 유실된다.
+`1번 전달 보장` 같은걸 기대할수 없다.
+
+
+### Timing of expired events
+TTL 이 0에 도달한 시점과 expired 이벤트가 발생한 시간에는 차이가 있을수 있다.
+이것은 expired event 가 발생하는 조건이 그러하기 때문인데 자세한것은 [redis.io 링크](https://redis.io/docs/manual/keyspace-notifications/) 에서 확인하자.
+
+
+
+## 결론
+redis notifications는 제때 도착하지도 않을수도 있고, 유실될 확률도 높다.

@@ -1,0 +1,93 @@
+---
+title: "RedisCacheManager TTL, Serializer 를 캐시이름별로 다르게 설정하기"
+description: "캐시는 언제까지 캐싱할지, 몇회만큼 캐싱할지 등 구체적인 설정이 가능 해야 한다.모든 캐시 구현체들은 해당 설정들을 조정 할수 있도록 방법을 제공한다.redis 는 기본적으로 TTL 활용할수 있는데 RedisCacheManager 역시 아래 2개의 메소드를 통해 Red"
+date: "2020-09-13"
+published: true
+tags: ["Cache", "redis", "serializer", "ttl"]
+---
+## 1. Overview
+캐시는 언제까지 캐싱할지, 몇회만큼 캐싱할지 등 구체적인 설정이 가능 해야 한다.
+모든 캐시 구현체들은 해당 설정들을 조정 할수 있도록 방법을 제공한다.
+
+
+## 2. TTL 설정
+redis 는 기본적으로 TTL 활용할수 있는데 RedisCacheManager 역시 아래 2개의 메소드를 통해 RedisCacheConfiguration 를 전달해서 설정 가능하다.
+
+- withInitialCacheConfigurations
+- cacheDefaults
+
+withInitialCacheConfigurations 에서 관리되는 cachName 인지 먼저 보고 없으면 cacheDefaults 의 설정값으로 동작 하는 방식이다.
+
+### 2.1 withInitialCacheConfigurations
+
+```
+withInitialCacheConfigurations(Map<String, RedisCacheConfiguration> confMap)
+```
+
+cachName별 conf를 Map 으로 셋업 한다.
+
+### 2.2 cacheDefaults
+
+```
+cacheDefaults(RedisCacheConfiguration conf) 
+```
+
+기본 conf 셋업 한다.
+
+## 3. 코드작성
+```java
+@Configuration
+@RequiredArgsConstructor
+public class CacheConfig {
+
+  @Bean(name = "redisCacheManager")
+  public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+    return RedisCacheManager.builder(connectionFactory)
+      .cacheDefaults(defaultConf())
+      .withInitialCacheConfigurations(confMap())
+      .build();
+  }
+
+  private RedisCacheConfiguration defaultConf() {
+    return RedisCacheConfiguration.defaultCacheConfig()
+      .serializeKeysWith(fromSerializer(new StringRedisSerializer()))
+      .serializeValuesWith(fromSerializer(new GenericJackson2JsonRedisSerializer()))
+      .entryTtl(Duration.ofMinutes(1));
+  }
+
+  private Map<String, RedisCacheConfiguration> confMap() {
+    Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
+    cacheConfigurations.put("cacheName1", defaultConf().entryTtl(Duration.ofMinutes(30L)));
+    cacheConfigurations.put("cacheName2", defaultConf().entryTtl(Duration.ofMinutes(600L)));
+    return cacheConfigurations;
+  }
+}
+```
+
+### 3.1 cacheDefaults
+
+withInitialCacheConfigurations 에서 관리되지 않는 cacheName 이라면 모두 cacheDefaults 설정대로 동작한다.
+말 그대로 default 설정이기 때문에 보수적으로 설정해주는것이 좋아 1분 TTL 을 적용했다.
+
+```java
+.entryTtl(Duration.ofMinutes(1));
+```
+
+또 redis 저장시 별도 설정이 없다면 JDK 직렬화를 이용하여 저장 하는데, 전혀 human readable 하지 못하다.
+따라서 사람에게 유용한 json 형식으로 포맷팅 하기 위해 밸류 직렬화 방식으로 GenericJackson2JsonRedisSerializer 를 설정한다.
+
+```java
+.serializeKeysWith(fromSerializer(new StringRedisSerializer()))
+.serializeValuesWith(fromSerializer(new GenericJackson2JsonRedisSerializer()))
+```
+
+### 3.2 withInitialCacheConfigurations
+
+이렇게 설정이 된경우 @Cacheable 에서 사용되는 cacheName 에 따라 30분, 600분, 1분이 적용된다.
+
+
+## 4. Conclusion
+
+RedisCacheManager 에서 캐시 이름별로 세부설정을 다르게 할수 있는 방법을 알아봤다.
+
+이제 TTL 이나 Serializer 를 각각 다르게 설정해줄수 있다.

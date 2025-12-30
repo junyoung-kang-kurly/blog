@@ -1,0 +1,48 @@
+---
+title: "Dockerfile 명령어 실행 형식 2가지 Exec, Shell  "
+description: "Exec 형식  (e.g RUN \"echo\", \"hello\")Shell 형식  (e.g RUN echo hello)CMD, RUN, ENTRYPOINT는 2가지 명령어 실행 형식을 지원하고 있다.셸에서 실행되냐 아니냐의 차이 이다. (Exec는 컨테이너 프로세스에서 실"
+date: "2023-09-10"
+published: true
+tags: []
+---
+
+### 명령어 실행 형식 2가지
+
+- Exec 형식  (e.g RUN ["echo", "hello"])
+- Shell 형식  (e.g RUN echo hello)
+
+CMD, RUN, ENTRYPOINT는 2가지 명령어 실행 형식을 지원하고 있다.
+
+### 차이점
+
+셸에서 실행되냐 아니냐의 차이 이다. (Exec는 컨테이너 프로세스에서 실행된다)
+때문에 Shell 형식은 셸에서 지원하는 (환경변수, 파일리디렉션, 파이프라인) 것들을 쓸수 있다.
+
+- Exec : 셸에서 실행되지 않음
+- Shell : 셸에서 실행
+
+
+
+### 실행 예시
+
+Exec로 실행 결과 (환경변수 출력 실패)
+```
+CMD ["echo", "svc name: $SERVICE_NAME"]
+# 출력 : "svc name: $SERVICE_NAME"
+```
+
+Sheel로 실행 결과 (환경변수 출력 성공)
+```
+CMD echo "svc name: $SERVICE_NAME"
+# "svc name: 내 서비스"
+```
+
+### 그렇다면 Exec는 언제 쓰는게 좋을까?
+
+대체로 Shell 형식이 훨씬 자유도가 높아보인다.
+Exec는 언제쓰지? 
+검색결과, 일반적으로 Exec 형식이 안전해보이고 권장된다.
+셸 실행이 필요하다면 스크립트를 실행하는 형식으로 만들자.
+
+![](/images/posts/6fa2c8f5-59c8-41dd-9b61-02319d4fbe64-image.png)
+출처 : https://emmer.dev/blog/docker-shell-vs.-exec-form/

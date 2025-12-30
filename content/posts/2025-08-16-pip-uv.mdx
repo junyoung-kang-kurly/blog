@@ -1,0 +1,75 @@
+---
+title: "파이썬 pip와 uv "
+description: "출처 : [진짜 빠르고 편한 파이썬 uv ](https://www.youtube.com/watch?v=1kZ-touiEQ8)  구성과 실행시 간편함  pip 구성시 복잡함 pip 구성시 다음과 같이 매우 복잡하다.  [만들 때] python3.13 -m venv .ve"
+date: "2025-08-16"
+published: true
+tags: []
+---
+> 출처 : [진짜 빠르고 편한 파이썬 uv](https://www.youtube.com/watch?v=1kZ-touiEQ8)
+
+## UV 구성과 실행시 간편함 알아보기
+
+### pip 구성시 복잡함
+pip 구성시 다음과 같이 매우 복잡하다.
+
+[만들 때]
+1. `python3.13 -m venv .venv`
+2. `source .venv/bin/activate`
+3. `pip install {package-name}`
+4. `python main.py`
+5. `pip freeze > requirements.txt`
+
+
+[실행할 때]
+1. `python3.13 -m venv .venv`
+2. `source .venv/bin/activate`
+3. `pip install -r requirements.txt`
+4. `python main.py`
+
+### uv 구성시 단순
+uv를 쓰면 이 과정이 훨씬 깔끔해진다. 
+`pip` 명령어와 비슷하게 쓸 수 있으면서도 속도와 편의성에서도 훨씬 좋다.
+
+[만들 때]
+1. **`uv venv`** (venv 만드는 속도부터 비교가 안되게 빠름)
+2. **`source .venv/bin/activate`** (활성화는 동일)
+3. **`uv pip install {package-name}`** (pip와 사용법은 같지만, 설치는 훨씬 빠름)
+4. **`uv pip freeze > requirements.txt`**
+
+[실행할 때]
+1. **`uv pip sync requirements.txt`** (`pip install -r` 대신 이걸 쓰면, 훨씬 빠르고 정확하게 의존성을 동기화해줌)
+2. **`uv run python main.py`** (가상환경을 매번 `activate` 할 필요 없이 바로 실행 가능)
+
+
+
+## `uvx`로 파이썬 tool을 편하게 실행하기
+
+`elevenlabs-mcp` 를 uv 로 실행시키는 예제를 보면 어플리케이션의 경로나 저장소 이름이 없다.
+
+```
+{
+  "mcpServers": {
+    "ElevenLabs": {
+      "command": "uvx",
+      "args": ["elevenlabs-mcp"],
+      "env": {
+        "ELEVENLABS_API_KEY": "<insert-your-api-key-here>"
+      }
+    }
+  }
+}
+```
+
+
+
+`uvx elevenlabs-mcp` 라고 명령시, `uv tool run elevenlabs-mcp` 으로 처리되는것과 같다.
+
+여기서 `tool` 기능 덕분에 다음과 같이 처리된다.
+
+1.  `uvx` 명령을 내리면 `uv`가 `pypi.org` 에서 `elevenlabs-mcp` 패키지를 다운로드한다.
+2.  이걸 **현재 프로젝트가 아니라 `uv`가 관리하는 별도의 격리된 공간(캐시)에 설치**한다. 그래서 내 프로젝트를 더럽히지 않는다.
+3.  설치가 끝나면 즉시 실행해준다.
+4.  결과적으로, 내 **소스 코드 위치와 상관없이 어디서든 `elevenlabs-mcp` 같은 파이썬 CLI 도구를 바로 실행**할 수 있게 된다. `black`이나 `ruff` 같은 툴을 프로젝트마다 설치할 필요가 없어진다는 뜻이다.
+
+> 마치 메이븐 로컬저장소 (`~/.m2` 경로) 에 내려받는것과 유사하게, uv도 중앙저장소가 있고 위치는 `~/.cache/uv` 이다.
+

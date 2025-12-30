@@ -1,0 +1,94 @@
+---
+title: "Opensearch 은전한닢 설치 핸즈온"
+description: "AWS 공식문서에서 은전한닢 설치 및 핸즈온이 있어서 따라해봤다.https&#x3A;//catalog.us-east-1.prod.workshops.aws/workshops/de4e38cb-a0d9-4ffe-a777-bf00d498fa49/ko-KR/indexing/bl"
+date: "2024-05-06"
+published: true
+tags: []
+---
+
+AWS 공식문서에서 은전한닢 설치 및 핸즈온이 있어서 따라해봤다.
+
+- https://catalog.us-east-1.prod.workshops.aws/workshops/de4e38cb-a0d9-4ffe-a777-bf00d498fa49/ko-KR/indexing/blog-reindex#1-index
+
+
+Opensearch 설치만 되어있으면 된다.
+
+
+
+### 은전한닢과 함께 인덱스 생성
+
+``` 
+# create index with seunjeon
+PUT korean-index
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "seunjeon": {
+          "type": "seunjeon_tokenizer"
+        }
+      },
+      "analyzer": {
+        "my_analyzer": {
+          "type": "custom",
+          "tokenizer": "seunjeon"
+        }
+      }
+    }
+  },
+    "mappings": {
+      "properties": {
+        "title": {
+          "type": "text"
+        },
+        "body": {
+          "type": "text",
+          "analyzer": "my_analyzer",
+          "search_analyzer": "my_analyzer"
+        }
+      }
+    }
+  }
+
+```
+
+참고로 es dev tools 에서 다음과 쿼리하여 설치된 플러그인을 확인할수 있다.
+analysis-seunjeon 이 보인다.
+![](/images/posts/4a7ba04a-5f33-4740-941c-4fcd4d2b7d62-image.png)
+
+또한 플러그인버전별 호환성은 아래를 참고할수 있다.
+https://docs.aws.amazon.com/opensearch-service/latest/developerguide/supported-plugins.html
+
+
+
+
+### 색인 생성 (인덱스에 도큐먼트 추가) 및 쿼리
+``` 
+# index document
+PUT korean-index/_doc/1
+{
+  "title": "AWS Ground Station – 위성 데이터 수집 및 처리 서비스 정식 출시",
+  "body": "지난 가을, AWS Ground Station에 대한 게시물에서 위성 데이터를 다운링크할 때 수행하는 단계를 미리 살펴봤습니다. 그동안 미리보기로 제공하던 AWS Ground Station을 정식 출시하고, 우선 미국 내 지상국 두 곳을 통해 바로 사용이 가능합니다. AWS Ground Station 사용하기 당시 설명한 것과 같이 첫 번째 단계는 위성의 NORAD ID 및 기타 정보를 AWS와 공유하여 AWS 계정에 위성을..."
+}
+
+# Query (출시, 출시하고 둘다 쿼리가 되어야 한다)
+GET korean-index/_search
+{
+  "query": {
+    "match": {
+      "body": {
+        "query": "출시"
+      }
+    }
+  }
+}
+```
+
+
+만약 기존의 인덱스의 형태소분석기를 교체하려면 새 인덱스를 구성해야한다.
+아래와 같은 순서로 처리한다.
+1. 새 인덱스 생성
+2. 기존 데이터 이전
+3. 인덱스 리네임
+
+

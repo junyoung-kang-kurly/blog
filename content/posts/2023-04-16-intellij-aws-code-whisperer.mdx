@@ -1,0 +1,71 @@
+---
+title: "Intellij에 AWS Code Whisperer 플러그인 설치"
+description: "깃헙의 코파일럿 같은건데, 뉴스레터? 블로그? 를 통해 알게 됐다. 개인용으로 무료 이다. Intellij 는 연동 가이드가 별로 없어서 작성해 본다.개발자 아이디 같은건가 보다.개인 무료버전의 코드 위스퍼러는 AWS Builder id로만 인증이 가능하다. 가이드 문"
+date: "2023-04-16"
+published: true
+tags: []
+---
+
+
+코드 위스퍼러는 깃헙의 코파일럿 같은건데, 코파일럿 쓰기전에 체험해보기 위해 개인용으로 무료이고 Intellij 깔아보기로 했다.
+
+참고 : https://aws.amazon.com/ko/blogs/aws/amazon-codewhisperer-free-for-individual-use-is-now-generally-available/
+
+
+
+
+
+## 시작
+
+### 1. AWS Builder id 생성 
+개발자 아이디 같은건가 보다.
+개인 무료버전의 `코드 위스퍼러`는 AWS Builder id로만 인증이 가능하다. 
+[가이드 문서](https://docs.aws.amazon.com/signin/latest/userguide/create-aws_builder_id.html) 에서, `To create your AWS Builder ID` 섹션을 따라하면 된다. 
+1분 이면 만들수 있다.
+
+### 2. Intellij 플러그인 설치
+[AWS toolkit 플러그인](https://plugins.jetbrains.com/plugin/11349-aws-toolkit) 설치하면 된다.
+
+해당 플러그인은 s3 익스플로러 등 AWS 서비스를 쉽게 접근하기 위한 피처들이 포함 되어 있는데, 이번에 추가된 `코드 위스퍼러` 도 포함되어 있다
+
+설치후 재시작 하자. 
+
+#### AWS Toolkit 패널 접근
+
+View -> Tool Windows -> AWS Toolkit 을 클릭하도록 한다.
+![](/images/posts/d98cf847-bdf8-4d43-b0c4-ccfbec2a0e30-image.png)
+
+다음과 같은 패널을 띄울수 있고, Developer Tools 에 CodeWhispereer 탭이 보인다면 성공한 것이다.
+(참고로 나는 aws cli 인증을 로컬에 해둔 상태라 약간 다르게 보여질수는 있다)
+![](/images/posts/1ab91b54-00e0-4ce8-b93e-f4126e060ffc-image.png)
+
+
+
+
+### 3. Intellij에서 AWS Builder id 인증
+
+
+#### 1. Add new Connection... 을 클릭
+![](/images/posts/452d6c6d-7c4a-4422-9233-af73d15dcd65-image.png)
+
+
+#### 2. 다음과 같이 선택후 Connect 클릭
+![](/images/posts/89720a9d-306f-4077-b894-8f9ec8e83edc-image.png)
+
+
+
+#### 3. Open And Copy Code 클릭
+![](/images/posts/58771733-1f98-401d-8d27-ff012491dc0a-image.png)
+
+
+이후부터는 AWS Authorize request 페이지로 이동하는데, 발급된 코드 넣고 Next.. Next 누르고 하다보면 절차가 잘 마무리 된다.
+모두 정상적으로 처리 되면 다음과 같은 화면을 볼수 있다
+
+![](/images/posts/4bb405c5-23d0-4654-8d9c-cdd1fb826ee2-image.png)
+
+
+이렇게 Intellij 에서도 connected 되었다는 것을 볼수 있다.
+![](/images/posts/abf60402-83d0-4e19-a120-dfddbabc7382-image.png)
+
+
+

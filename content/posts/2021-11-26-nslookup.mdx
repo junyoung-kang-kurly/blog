@@ -1,0 +1,108 @@
+---
+title: "nslookup 기본 사용법"
+description: "nslookup 명령어를 익혀보자"
+date: "2021-11-26"
+published: true
+tags: ["DNS", "ns", "nslookup"]
+---
+nslookup 명령어 결과를 이해 해보자.
+
+nslookup 은 dns 도메인을 dns 에 질의하여 ip 를 찾아주는데 주로 쓰인다.
+`nslookup example.com` 을 입력 해보면 결과는 아래와 같다.
+
+``` 
+$> nslookup example.com
+Server:		1.1.1.1 	// 응답한 dns의 ip
+Address:	168.126.63.1#53
+
+
+Non-authoritative answer: 	// 응답한 dns 권위가 없다
+Name:	example.com
+Address: 93.184.216.34		// example.com 도메인의 ip
+```
+
+nslookup 의 전반적인 설명은 주석으로 설명이 됐다.
+그런데 중간에 `Non-authoritative answer` (권위없는 응답) 이라는데 무슨 의미일까? 
+
+### Non-authoritative answer?
+먼저 dns 가 질의 해 가는 과정을 알아야 한다.
+아래 그림에서는 `authoritative name server` 가 가장 정확하고 공신력 있는 서버 이지만, 성능을 위해 우리 pc 가장 근처에 있는 dns `1.1.1.1` 가 응답을 하도록 캐싱 되어 있다.
+
+
+![](/images/posts/36d41bf8-0209-49df-a41a-acfa68e8ffa1-image.png)
+
+
+
+### authoritative 응답 받는 방법?
+
+만약 `authoritative name server` 에게 질의 하고 싶다면 이녀석의 dns ip 를 알아야 한다. 
+알아내는 방법은 `-type=ns` 옵션을 추가 하면 실제 권위있는 ns 서버를 알수 있다.
+
+
+```
+$> nslookup -type=ns example.com
+Server:		168.126.63.1
+Address:	168.126.63.1#53
+
+Non-authoritative answer:
+example.com	nameserver = a.iana-servers.net. // ns
+example.com	nameserver = b.iana-servers.net.
+
+Authoritative answers can be found from:
+a.iana-servers.net	internet address = 199.43.135.53
+b.iana-servers.net	internet address = 199.43.133.53
+a.iana-servers.net	has AAAA address 2001:500:8f::53
+b.iana-servers.net	has AAAA address 2001:500:8d::53
+
+```
+
+`example.com` 을 관리하는 dns 가 `a.iana-servers.net` 임을 알 수 있다. (`b.~` 은 2중화 된것)
+
+
+이제 `nslookup example.com a.iana-servers.net` 라고 질의 해보면 다음과 같이 `Non-authoritative` 가 사라진것을 볼 수 있다. 
+
+```
+$> nslookup example.com a.iana-servers.net
+Server:		a.iana-servers.net
+Address:	199.43.135.53#53
+
+Name:	example.com
+Address: 93.184.216.34
+
+```
+
+
+### type?
+
+위에서 `type=ns` 로 조회 하는것은 권위있는 dns 의 IP 주소를 알수 있다는것을 알았다.
+
+다른 옵션 들도 있다. 
+예를들어 `-type=a` 는 a 레코드를 조회하라는 뜻이고 생략 되어있다.
+`nslookup -type=a example.com` 로 질의를 해보면 응답이 같다.
+
+a 대신에 다른 value 들도 있다. (cname, mx, ipv6, text..)
+
+```
+DNS 리소스 레코드 종류를 지정합니다. 기본 리소스 레코드 형식은 이지만 다음 값 중 하나를 사용할수 있습니다.
+A: 컴퓨터의 IP 주소를 지정 합니다.
+ANY: 컴퓨터의 IP 주소를 지정 합니다.
+CNAME: 별칭의 정식 이름을 지정 합니다.
+GID 그룹 이름의 그룹 식별자를 지정 합니다.
+HINFO: 컴퓨터의 CPU 및 운영 체제 유형을 지정 합니다.
+MB: 사서함 도메인 이름을 지정 합니다.
+MG: 메일 그룹 구성원을 지정 합니다.
+MINFO: 사서함 또는 메일 목록 정보를 지정 합니다.
+MR: 메일 이름 바꾸기 도메인 이름을 지정 합니다.
+MX: 메일 교환기를 지정 합니다.
+NS: 명명 된 영역에 대 한 DNS 이름 서버를 지정 합니다.
+PTR: 쿼리가 IP 주소인 경우 컴퓨터 이름을 지정 합니다. 그렇지 않으면 다른 정보에 대 한 포인터를 지정 합니다.
+SOA: DNS 영역에 대 한 권한을 지정 합니다.
+TXT: 텍스트 정보를 지정 합니다.
+UID: 사용자 식별자를 지정 합니다.
+Uinfo: 사용자 정보를 지정 합니다.
+WKS: 잘 알려진 서비스에 대해 설명 합니다.
+```
+
+>  참고자료
+> [생활코딩](https://www.youtube.com/watch?v=LAnXZy3z2WA) , [MS docs](https://docs.microsoft.com/ko-kr/windows-server/administration/windows-commands/nslookup-set-querytype)
+

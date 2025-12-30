@@ -1,0 +1,101 @@
+---
+title: "맥 초기화 후 셋업 리스트"
+description: "https&#x3A;//brew.sh/index_kobrew install awscli gradle adoptopenjdk/openjdk/adoptopenjdk8 redis jqbrew install --cask docker google-chrome slack iter"
+date: "2022-12-10"
+published: true
+tags: []
+---
+
+
+### Brew 설치
+https://brew.sh/index_ko 를 통해 설치하자.
+
+
+
+
+### 툴 설치
+#### Brew로 설치하는것들
+
+**formular**
+- brew install awscli \ 
+gradle \ 
+adoptopenjdk/openjdk/adoptopenjdk8 \
+redis \
+jq \ 
+kubernetes-cli \
+kubectx \
+deviceinsight/packages/kafkactl \
+aws-iam-authenticator \
+wget \
+git-flow-avh \
+telnet
+
+
+**cask**
+- brew install --cask docker \ 
+google-chrome \
+slack \
+iterm2 \
+postman \
+notion \
+macs-fan-control \
+alfred \
+sublime-text \
+hiddenbar \
+monitorcontrol \
+dropbox \
+authy \
+mate-translate \
+jetbrains-toolbox \
+pgadmin4 \
+
+모두 설치 했다면 `brew upgrade` 명령어로 언제든지 최신버전으로 업그레이드 가능하다.
+이외에 outated 버전을 확인하는 등 다른 명령어 확인은 https://sukvvon.tistory.com/7 참조하자.
+
+
+#### App Store로 설치하는것들
+- magnet
+- notability  // 설정에서 `icloud 동기화` 활성화 필요
+
+
+### 알프레드
+워크플로우
+1. 네이버 사전 검색 (https://github.com/Kuniz/alfnaversearch)
+2. 노션 검색 (https://github.com/wrjlewis/notion-search-alfred-workflow)
+3. 깃헙 (https://github.com/gharlan/alfred-github-workflow)
+
+### github 공개키 등록
+https://brunch.co.kr/@anonymdevoo/10
+
+### Iterm 꾸미기
+아래 정말 정리가 잘된 블로그가 있다.
+따라 치기만 해도 금방 셋업할수 있다.
+https://blog.pigno.se/post/184576332493/%EC%99%84%EB%B2%BD%ED%95%9C-mac-%EC%9E%91%EC%97%85%ED%99%98%EA%B2%BD-%EC%84%B8%ED%8C%85%ED%95%98%EA%B8%B0-vim-zsh-iterm
+
+
+### AWS 프로필 등록
+
+```
+$ aws configure --profile bonjugi1
+# AWS Access Key ID [None]: ~~~
+# AWS Secret Access Key [None]: ~~~
+# Default region name [None]: ap-northeast-2
+# Default output format [None]: json
+```
+위 내용은 각각 `~/.aws/config` 와 `~/.aws/credentials` 에 작성된다.
+
+
+#### 명명된 프로파일 지정법
+```
+export AWS_PROFILE=bonjugi1
+```
+
+
+### K8S 셋팅
+
+1. vi ~/.kube/config 작성
+2. kubectl config use-context &#123;context name&#125;  // 이걸 한번 해줘야 kubens 가 동작한다
+
+### Kafkactl 셋팅
+
+https://github.com/deviceinsight/kafkactl 에서 `Create a config file` 섹션 참조

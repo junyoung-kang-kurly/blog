@@ -1,0 +1,20 @@
+---
+title: "데이터베이스 8가지 데이터구조"
+description: "출처 : https&#x3A;//blog.bytebytego.com/p/ep-43-8-data-structures-that-power다음은 데이터 인덱싱에 사용되는 가장 널리 사용되는 데이터 구조 중 일부입니다.1\\. Skiplist: 일반적인 메모리 내 인덱스 유형입"
+date: "2023-02-05"
+published: true
+tags: []
+---
+출처 : https://blog.bytebytego.com/p/ep-43-8-data-structures-that-power
+
+![](/images/posts/6693bb0f-dadf-4970-af1b-5f5dc7e4e393-image.png)
+
+다음은 데이터 인덱싱에 사용되는 가장 널리 사용되는 데이터 구조 중 일부입니다.
+1. Skiplist: 일반적인 메모리 내 인덱스 유형입니다. 레디스에서 사용
+2. Hash index: "Map" 데이터 구조(또는 "컬렉션")의 매우 일반적인 구현
+3. SSTable: 변경 불가능한 온디스크 "Map" 구현
+4. LSM 트리: Skiplist + SSTable. 높은 쓰기 처리량
+5. B-트리: 디스크 기반 솔루션. 일관된 읽기/쓰기 성능
+6. Inverted index: 문서 인덱싱에 사용됩니다. 루씬에서 사용
+7. Suffix tree: 문자열 패턴 검색용
+8. R-tree: 가장 가까운 이웃 찾기와 같은 다차원 검색

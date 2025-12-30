@@ -1,0 +1,120 @@
+---
+title: "Diagram 자동생성 방법 소개"
+description: "Overview 기존 코드를 바탕으로 클래스 다이어그램을 그려야 할때가 종종 있다. 클래스 다이어그램을 2가지 방법으로 그릴수 있다.  Intellij Java Class Diagram 으로 자동으로 그리기 PlantUML 문법을 작성하여 그리기  Intellij Java Class Diagram 는 자바 클래스 파일을 바탕으로 자동으로 다이어그램을 그려준..."
+date: "2021-10-03"
+published: true
+tags: ["IntelliJ", "PlantUML", "class", "diagram", "plugin", "sequence"]
+---
+## Overview
+기존 코드를 바탕으로 클래스 다이어그램을 그려야 할때가 종종 있다.
+클래스 다이어그램을 2가지 방법으로 그릴수 있다.
+
+1. Intellij Java Class Diagram 으로 자동으로 그리기
+2. PlantUML 문법을 작성하여 그리기
+
+`Intellij Java Class Diagram` 는 자바 클래스 파일을 바탕으로 자동으로 다이어그램을 그려준다.
+매우 편하지만 기존 코드가 없으면 쓸수 없고, 편집의 자유도가 떨어진다는 단점이 있다.
+
+`PlantUML` 은 문법대로 작성하면 viewer 가 설치된 곳이라면 어디든 잘 표기해준다.
+특히 jira 에서도 쓸수가 있어 좋고 클래스다이어그램 외에도 시퀀스, 객체, 상태 등 다양한 다이어그램을 그리는 등 확장성이 매우 좋다.
+
+마지막으로 PlantUML 문장을 자동으로 작성해주는 Intellij plugin 2개를 소개한다.
+
+1. `PlantUML Parser`
+2. `Sequence Diagram`
+ 
+
+
+
+## 1. Intellij Java Class Diagram
+https://www.jetbrains.com/help/idea/class-diagram.html 에서 기본 사용법을 익힐수 있다.
+다이어그램을 그려내면 이러한 결과가 보여진다.
+![](/images/posts/78167013-f89c-437a-a8f2-a62013b53f08-image.png)
+
+이상태로는 각 클래스가 어떤 데이터와 기능을 갖고있는지 알수 없다.
+그리고 클래스간의 의존관계도 안보이고 궁금하지 않은 Lombok Annotaion만 있어서 보기 불편하다.
+
+4가지 설정을 통해 다음과 같이 보기 좋게 변경할수 있다.
+
+![](/images/posts/3a764bcf-cac0-461d-bb68-df6aa4df87e3-image.png)
+
+
+4가지 설정방법에 대해 알아보자.
+
+1. 의존관계 추가
+메뉴바에서 Show Dependencies 활성화
+![](/images/posts/fe0f9811-2f41-4159-a3fb-ba0a57502834-image.png)
+
+2. Lombok Annotaion 제거
+메뉴바 필터에서 Production 선택 (내가 선택한 파일들만 보고 싶다면 Open files 를 선택해도 좋다)
+![](/images/posts/6c387d01-13b0-4cda-8ec3-0f8bd2b6339b-image.png)
+
+
+3. Files 및 methods 표기
+툴팁 좌측에 f, m 클릭
+![](/images/posts/7011d1aa-53e8-4652-a60f-194230c606ae-image.png)
+
+4. 레이아웃 변경
+편집 윈도우에서 우클릭 후 Layout -> Ballon Layout 선택
+![](/images/posts/84bd2d93-0abe-4f2f-9f92-cdb910563645-image.png)
+
+
+## 2. PlantUML
+PlantUML 는 정말 많은 다이어그램을 문법으로 그려낼수 있다.
+다만 문법이 복잡하므로 documents 켜놓고 작업하게 된다. 
+https://plantuml.com/ko/ 를 참고하자.
+
+클래스다이어그램 문법은 대략 이러하다.
+```
+@startuml
+class dev.bonjugi.jpastudy.member.entity.Address {
+- String city
+- String street
+- String zipcode
++ boolean inSeoul()
+}
+class dev.bonjugi.jpastudy.member.entity.Member {
+- Long id
+- String name
+- Address address
++ void changeAddress(Address)
+}
+@enduml
+```
+이것을 PlantUML 문법을 해석할수 있는 온라인 사이트라던지 IDE 등에서 viewing 을 할수 있다.
+아틀라시안 Confluence 문법 해석이 가능하여 위키에 embed 할수 있다.
+![](/images/posts/eba9eb3a-a4bb-45c9-b49d-ea34896a46e6-image.png)
+
+
+문제는 위 문법을 작성하기가 너무 귀찮다.
+하지만 너무 걱정하지 말자. 
+위 텍스트는 내가 작성한게 아니라 `PlantUML Parser` 가 자동으로 생성해 준것이다.
+PlantUML 클래스다이어그램을 작성해야 한다면 `PlantUML Parser` 를 사용해 보자. 
+또는 시퀀스다이어그램을 작성해야 한다면 `Sequence Diagram` 을 사용해 보자.
+
+### 2.1 클래스다이어그램 자동 생성 플러그인 - PlantUML Parser
+Intellij plugins 에서 `PlantUML Parser` 를 설치하면 된다.
+https://plugins.jetbrains.com/plugin/index?xmlId=plantuml-parser
+
+설치되면 다이어그램을 그리고 싶은 클래스들을 우클릭하고 `PlantUML Parser` 를 클릭하면 된다.
+그럼 상세옵션들을 선택해주는 다이얼로그가 뜬다.
+여기서 필요한 옵션들만 골라줄수도 있다.
+![](/images/posts/94c12b92-0bde-4df6-9ac5-7765eaccfba7-image.png)
+
+
+
+### 2.2 시퀀스다어그램 자동 생성 플러그인 - Sequence Diagram
+Intellij plugins 에서 `Sequence Diagram` 를 설치하면 된다.
+https://plugins.jetbrains.com/plugin/8286-sequencediagram
+
+설치하면 단순히 메소드를 우클릭 -> Sequence Diagram 을 선택 하는것 만으로도 아래와 같은 결과물을 볼수 있게 된다.
+게다가 PlantUML 파일로 extract 도 지원하고 있어서 매우 편리하다.
+![](/images/posts/5bc8511b-4038-48b8-9cbb-8641b7ff53b8-image.png)
+
+
+## 3. Conclusion
+여러 다이어그램을 그리는 방법들에 대해서 알아봤다.
+클래스다이어그램을 시작해서 Intellij 에서 자동생성 해주는 Java Class Diagram 기능을 알아봤고
+더 확장된 기능을 제공하는 PlantUML 을 알아봤다. 
+PlantUML 을 작성하는 불편함을 해소하기 위해 2가지 플러그인을 알아봤다.
+
