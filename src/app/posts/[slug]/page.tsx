@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { posts } from "#site/content";
 import { MDXContent } from "@/components/mdx-content";
 import { SeriesNavigation } from "@/components/series-navigation";
+import { TableOfContents } from "@/components/post-toc";
 import { formatDate, getSeriesInfo } from "@/lib/utils";
 import { siteConfig } from "@/lib/site-config";
 import { Calendar, ArrowLeft } from "lucide-react";
@@ -154,8 +155,16 @@ export default async function PostPage({ params }: PostPageProps) {
 
       <hr className="mb-8" />
 
-      <div className="prose">
-        <MDXContent code={post.body} />
+      <div className="relative">
+        <aside className="hidden xl:block absolute inset-y-0 left-full ml-8 w-56">
+          <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
+            <TableOfContents title={siteConfig.tocLabel} />
+          </div>
+        </aside>
+
+        <div id="post-content" className="prose">
+          <MDXContent code={post.body} />
+        </div>
       </div>
     </article>
   );
