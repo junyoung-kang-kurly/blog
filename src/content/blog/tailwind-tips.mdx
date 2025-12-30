@@ -1,0 +1,80 @@
+---
+title: "Tailwind CSS 실전 팁 모음"
+description: "Tailwind CSS를 더 효율적으로 사용하기 위한 실용적인 팁들을 공유합니다."
+pubDate: 2024-12-28
+tags: ["tailwind", "css", "tips"]
+heroImage: "https://images.unsplash.com/photo-1507721999472-8ed4421c4af2?w=800&h=400&fit=crop"
+---
+
+import Image from '../../components/Image.astro';
+
+## Tailwind CSS 실전 팁
+
+Tailwind CSS를 효과적으로 사용하기 위한 팁들을 공유합니다.
+
+### 1. CSS 변수 활용하기
+
+테마 색상을 CSS 변수로 관리하면 다크 모드 구현이 쉬워집니다:
+
+```css
+:root {
+  --color-bg: #ffffff;
+  --color-text: #111827;
+}
+
+.dark {
+  --color-bg: #0f172a;
+  --color-text: #f1f5f9;
+}
+```
+
+### 2. @apply 사용 최소화
+
+`@apply`는 편리하지만 Tailwind의 장점을 약화시킬 수 있습니다. 컴포넌트를 사용하세요:
+
+```astro
+<!-- 권장하지 않음 -->
+<style>
+  .btn {
+    @apply px-4 py-2 bg-blue-500 text-white rounded;
+  }
+</style>
+
+<!-- 권장 -->
+<button class="px-4 py-2 bg-blue-500 text-white rounded">
+  Click me
+</button>
+```
+
+### 3. 반응형 디자인 패턴
+
+모바일 퍼스트로 작성하고, 큰 화면에서 오버라이드하세요:
+
+```html
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <!-- 모바일: 1열, 태블릿: 2열, 데스크탑: 3열 -->
+</div>
+```
+
+### 4. 조건부 클래스
+
+동적 클래스를 적용할 때는 템플릿 리터럴을 사용하세요:
+
+```typescript
+const buttonClass = `
+  px-4 py-2 rounded
+  ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}
+  ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}
+`;
+```
+
+<Image
+  src="https://images.unsplash.com/photo-1523437113738-bbd3cc89fb19?w=800"
+  alt="CSS 코드"
+  width="medium"
+  caption="깔끔한 스타일링은 사용자 경험을 향상시킵니다"
+/>
+
+## 결론
+
+Tailwind CSS는 처음에는 학습 곡선이 있지만, 익숙해지면 매우 빠르게 스타일링할 수 있습니다. 위 팁들을 활용하여 더 효율적인 개발을 해보세요!

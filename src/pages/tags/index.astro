@@ -1,0 +1,39 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const posts = await getCollection('blog', ({ data }) => !data.draft);
+
+// Get all unique tags with counts
+const tagCounts = posts.reduce((acc, post) => {
+  post.data.tags.forEach((tag) => {
+    acc[tag] = (acc[tag] || 0) + 1;
+  });
+  return acc;
+}, {} as Record<string, number>);
+
+const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+---
+
+<BaseLayout title="Tags - TechBlog" description="Browse all tags">
+  <h1 class="text-3xl font-bold mb-8" style="color: var(--color-text);">
+    All Tags
+  </h1>
+
+  {sortedTags.length === 0 ? (
+    <p style="color: var(--color-text-secondary);">No tags yet.</p>
+  ) : (
+    <div class="flex flex-wrap gap-4">
+      {sortedTags.map(([tag, count]) => (
+        <a
+          href={`/tags/${tag}`}
+          class="px-4 py-2 rounded-full border border-[var(--color-border)] hover:bg-[var(--color-accent)] hover:text-white hover:border-[var(--color-accent)] transition-colors"
+          style="color: var(--color-text);"
+        >
+          #{tag}
+          <span class="ml-2 text-sm" style="opacity: 0.7;">({count})</span>
+        </a>
+      ))}
+    </div>
+  )}
+</BaseLayout>

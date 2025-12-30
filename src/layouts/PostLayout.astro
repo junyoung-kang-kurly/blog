@@ -1,0 +1,90 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+import RelatedPosts from '../components/RelatedPosts.astro';
+import TagList from '../components/TagList.astro';
+import FormattedDate from '../components/FormattedDate.astro';
+import { getCollection } from 'astro:content';
+import readingTime from 'reading-time';
+
+interface Props {
+  frontmatter: {
+    title: string;
+    description: string;
+    pubDate: Date;
+    updatedDate?: Date;
+    heroImage?: string;
+    tags: string[];
+  };
+  headings: { depth: number; slug: string; text: string }[];
+  rawContent?: () => string;
+}
+
+const { frontmatter, headings, rawContent } = Astro.props;
+const { title, description, pubDate, updatedDate, heroImage, tags } = frontmatter;
+
+// Calculate reading time
+const content = rawContent ? rawContent() : '';
+const { text: readTime } = readingTime(content);
+
+// Get all posts for related posts
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+---
+
+<BaseLayout title={title} description={description} image={heroImage}>
+  <article class="max-w-none">
+    <!-- Hero Image -->
+    {heroImage && (
+      <img
+        src={heroImage}
+        alt={title}
+        class="w-full h-64 md:h-96 object-cover rounded-lg mb-8"
+      />
+    )}
+
+    <!-- Article Header -->
+    <header class="mb-8 border-b border-[var(--color-border)] pb-8">
+      <h1 class="text-3xl md:text-4xl font-bold mb-4" style="color: var(--color-text);">
+        {title}
+      </h1>
+
+      <div class="flex flex-wrap items-center gap-4 text-sm" style="color: var(--color-text-secondary);">
+        <time datetime={pubDate.toISOString()}>
+          <FormattedDate date={pubDate} />
+        </time>
+
+        {updatedDate && (
+          <span>
+            (Updated: <FormattedDate date={updatedDate} />)
+          </span>
+        )}
+
+        <span>{readTime}</span>
+      </div>
+
+      {tags.length > 0 && (
+        <div class="mt-4">
+          <TagList tags={tags} />
+        </div>
+      )}
+    </header>
+
+    <!-- Content with TOC -->
+    <div class="lg:grid lg:grid-cols-[1fr_200px] lg:gap-8">
+      <div class="prose prose-lg max-w-none" style="color: var(--color-text);">
+        <slot />
+      </div>
+
+      {headings.length > 0 && (
+        <aside class="hidden lg:block">
+          <div class="sticky top-24">
+            <TableOfContents headings={headings} />
+          </div>
+        </aside>
+      )}
+    </div>
+
+    <!-- Related Posts -->
+    <RelatedPosts currentSlug={Astro.params.slug || ''} currentTags={tags} allPosts={allPosts} />
+  </article>
+</BaseLayout>

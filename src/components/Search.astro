@@ -1,0 +1,203 @@
+---
+---
+
+<div class="relative">
+  <button
+    id="search-button"
+    type="button"
+    class="p-2 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+    aria-label="Search posts"
+  >
+    <svg
+      class="w-5 h-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      style="color: var(--color-text);"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      />
+    </svg>
+  </button>
+</div>
+
+<!-- Search Modal -->
+<div
+  id="search-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+  style="background-color: rgba(0, 0, 0, 0.5);"
+>
+  <div
+    class="w-full max-w-xl rounded-lg shadow-2xl border border-[var(--color-border)]"
+    style="background-color: var(--color-bg);"
+  >
+    <div class="p-4">
+      <div class="flex items-center gap-3 border-b border-[var(--color-border)] pb-4">
+        <svg
+          class="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          style="color: var(--color-text-secondary);"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Search posts..."
+          class="flex-1 bg-transparent outline-none"
+          style="color: var(--color-text);"
+          autocomplete="off"
+        />
+        <button
+          id="search-close"
+          type="button"
+          class="p-1 rounded hover:bg-[var(--color-bg-secondary)]"
+        >
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            style="color: var(--color-text-secondary);"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div id="search-results" class="mt-4 max-h-96 overflow-y-auto">
+        <p class="text-center py-8" style="color: var(--color-text-secondary);">
+          Type to search...
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import Fuse from 'fuse.js';
+
+  interface Post {
+    title: string;
+    description: string;
+    slug: string;
+    tags: string[];
+  }
+
+  let fuse: Fuse<Post> | null = null;
+  let posts: Post[] = [];
+
+  const searchButton = document.getElementById('search-button');
+  const searchModal = document.getElementById('search-modal');
+  const searchInput = document.getElementById('search-input') as HTMLInputElement;
+  const searchClose = document.getElementById('search-close');
+  const searchResults = document.getElementById('search-results');
+
+  // Load posts data
+  async function loadPosts() {
+    if (posts.length > 0) return;
+
+    try {
+      const response = await fetch('/api/posts.json');
+      posts = await response.json();
+      fuse = new Fuse(posts, {
+        keys: ['title', 'description', 'tags'],
+        threshold: 0.3,
+        includeScore: true,
+      });
+    } catch (error) {
+      console.error('Failed to load posts:', error);
+    }
+  }
+
+  function openModal() {
+    searchModal?.classList.remove('hidden');
+    searchModal?.classList.add('flex');
+    searchInput?.focus();
+    loadPosts();
+  }
+
+  function closeModal() {
+    searchModal?.classList.add('hidden');
+    searchModal?.classList.remove('flex');
+    if (searchInput) searchInput.value = '';
+    if (searchResults) {
+      searchResults.innerHTML = '<p class="text-center py-8" style="color: var(--color-text-secondary);">Type to search...</p>';
+    }
+  }
+
+  function renderResults(results: Fuse.FuseResult<Post>[]) {
+    if (!searchResults) return;
+
+    if (results.length === 0) {
+      searchResults.innerHTML = '<p class="text-center py-8" style="color: var(--color-text-secondary);">No results found</p>';
+      return;
+    }
+
+    searchResults.innerHTML = results
+      .map(
+        ({ item }) => `
+        <a
+          href="/blog/${item.slug}"
+          class="block p-3 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors"
+        >
+          <h3 class="font-medium" style="color: var(--color-text);">${item.title}</h3>
+          <p class="text-sm mt-1 line-clamp-2" style="color: var(--color-text-secondary);">${item.description}</p>
+          ${item.tags.length > 0 ? `
+            <div class="flex gap-2 mt-2">
+              ${item.tags.slice(0, 3).map(tag => `
+                <span class="text-xs px-2 py-0.5 rounded" style="background-color: var(--color-bg-secondary); color: var(--color-text-secondary);">
+                  ${tag}
+                </span>
+              `).join('')}
+            </div>
+          ` : ''}
+        </a>
+      `
+      )
+      .join('');
+  }
+
+  searchButton?.addEventListener('click', openModal);
+  searchClose?.addEventListener('click', closeModal);
+
+  searchModal?.addEventListener('click', (e) => {
+    if (e.target === searchModal) closeModal();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+      e.preventDefault();
+      openModal();
+    }
+    if (e.key === 'Escape') closeModal();
+  });
+
+  searchInput?.addEventListener('input', (e) => {
+    const query = (e.target as HTMLInputElement).value;
+    if (!query || !fuse) {
+      if (searchResults) {
+        searchResults.innerHTML = '<p class="text-center py-8" style="color: var(--color-text-secondary);">Type to search...</p>';
+      }
+      return;
+    }
+    const results = fuse.search(query);
+    renderResults(results);
+  });
+</script>

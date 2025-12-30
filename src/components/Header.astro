@@ -1,0 +1,43 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+import Search from './Search.astro';
+---
+
+<header class="sticky top-0 z-50 border-b border-[var(--color-border)]" style="background-color: var(--color-bg);">
+  <div class="max-w-4xl mx-auto px-4 py-4">
+    <nav class="flex items-center justify-between">
+      <!-- Logo / Site Name -->
+      <a href="/" class="text-xl font-bold hover:opacity-80 transition-opacity" style="color: var(--color-text);">
+        TechBlog
+      </a>
+
+      <!-- Navigation Links -->
+      <div class="flex items-center gap-4">
+        <a
+          href="/"
+          class="text-sm hover:opacity-80 transition-opacity hidden sm:block"
+          style="color: var(--color-text-secondary);"
+        >
+          Home
+        </a>
+        <a
+          href="/tags"
+          class="text-sm hover:opacity-80 transition-opacity hidden sm:block"
+          style="color: var(--color-text-secondary);"
+        >
+          Tags
+        </a>
+        <a
+          href="/rss.xml"
+          class="text-sm hover:opacity-80 transition-opacity hidden sm:block"
+          style="color: var(--color-text-secondary);"
+        >
+          RSS
+        </a>
+
+        <Search />
+        <ThemeToggle />
+      </div>
+    </nav>
+  </div>
+</header>

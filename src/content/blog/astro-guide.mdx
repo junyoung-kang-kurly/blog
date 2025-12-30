@@ -1,0 +1,81 @@
+---
+title: "Astro 시작하기 - 정적 사이트 생성의 새로운 표준"
+description: "Astro 프레임워크의 핵심 개념과 장점을 알아보고, 왜 기술 블로그에 적합한지 살펴봅니다."
+pubDate: 2024-12-29
+tags: ["astro", "static-site", "tutorial"]
+heroImage: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&h=400&fit=crop"
+---
+
+## Astro란?
+
+Astro는 **콘텐츠 중심 웹사이트**를 위해 설계된 최신 정적 사이트 생성기입니다.
+
+### 주요 특징
+
+#### 1. Zero JavaScript by Default
+
+Astro는 기본적으로 클라이언트에 JavaScript를 전송하지 않습니다:
+
+```astro
+---
+// 이 코드는 서버에서만 실행됩니다
+const posts = await fetch('/api/posts').then(r => r.json());
+---
+
+<ul>
+  {posts.map(post => <li>{post.title}</li>)}
+</ul>
+```
+
+#### 2. Islands Architecture
+
+필요한 컴포넌트만 선택적으로 하이드레이션할 수 있습니다:
+
+```astro
+<!-- 정적 헤더 - JavaScript 없음 -->
+<Header />
+
+<!-- 인터랙티브 검색 - 필요할 때만 로드 -->
+<SearchComponent client:visible />
+
+<!-- 정적 푸터 - JavaScript 없음 -->
+<Footer />
+```
+
+#### 3. 다양한 프레임워크 지원
+
+React, Vue, Svelte, Solid 등 원하는 UI 프레임워크를 함께 사용할 수 있습니다.
+
+### Content Collections
+
+Astro의 Content Collections는 마크다운/MDX 콘텐츠를 타입 안전하게 관리합니다:
+
+```typescript
+// src/content.config.ts
+import { defineCollection, z } from 'astro:content';
+
+const blog = defineCollection({
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),
+    tags: z.array(z.string()),
+  }),
+});
+
+export const collections = { blog };
+```
+
+### 성능 비교
+
+| 프레임워크 | 초기 JS 번들 | Lighthouse 점수 |
+|-----------|-------------|-----------------|
+| Astro     | 0 KB        | 100             |
+| Next.js   | ~80 KB      | 90-95           |
+| Gatsby    | ~70 KB      | 85-95           |
+
+## 결론
+
+기술 블로그나 문서 사이트를 만든다면 Astro는 최고의 선택입니다. 빠른 빌드 속도, 뛰어난 성능, 그리고 유연한 구조를 제공합니다.
+
+다음 포스트에서는 Astro의 고급 기능들을 더 자세히 살펴보겠습니다.
