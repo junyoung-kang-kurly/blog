@@ -139,6 +139,43 @@ body {
   margin: 2rem 0;
 }
 
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.875rem;
+}
+
+.prose thead {
+  border-bottom: 2px solid var(--border);
+}
+
+.prose th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  background: var(--muted);
+}
+
+.prose td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.prose tbody tr:hover {
+  background: var(--muted);
+}
+
+.prose th:first-child,
+.prose td:first-child {
+  padding-left: 0.5rem;
+}
+
+.prose th:last-child,
+.prose td:last-child {
+  padding-right: 0.5rem;
+}
+
 /* Rehype Pretty Code styles */
 [data-rehype-pretty-code-figure] pre {
   background: var(--muted) !important;

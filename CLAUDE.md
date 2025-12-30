@@ -57,6 +57,8 @@ Velite 콘텐츠 스키마 정의:
 - `date`: ISO 날짜 형식
 - `published`: 공개 여부 (기본값: true)
 - `tags`: 태그 배열 (기본값: [])
+- `series`: 시리즈 식별자 (선택)
+- `seriesOrder`: 시리즈 내 순서 (선택)
 - `slug`: 파일 경로에서 자동 생성 (`s.path()`)
 - `body`: MDX 본문 (`s.mdx()`)
 
@@ -104,3 +106,44 @@ const post = posts.find((p) => p.slugAsParams === slug);
 - 다크 모드 미지원 (라이트 테마만)
 - MDX 콘텐츠는 `prose` 클래스로 스타일링
 - 코드 블록은 Rehype Pretty Code가 처리 (`github-light` 테마)
+
+## 시리즈 작성 가이드
+
+여러 편으로 구성된 연재 글을 작성할 때 시리즈 기능을 사용한다.
+
+### frontmatter 설정
+
+```yaml
+---
+title: "시리즈 제목 (1) - 부제목"
+series: "series-slug"      # 시리즈 식별자 (kebab-case)
+seriesOrder: 1             # 시리즈 내 순서 (1부터 시작)
+---
+```
+
+### 규칙
+
+- `series`: 같은 시리즈의 모든 글에 동일한 값 사용
+- `seriesOrder`: 1부터 시작하는 정수, 표시 순서 결정
+- 시리즈가 아닌 단독 글은 두 필드 모두 생략
+
+### 예시
+
+```yaml
+# 첫 번째 글
+series: "claude-code-sub-agents"
+seriesOrder: 1
+
+# 두 번째 글
+series: "claude-code-sub-agents"
+seriesOrder: 2
+
+# 세 번째 글
+series: "claude-code-sub-agents"
+seriesOrder: 3
+```
+
+### 자동 생성되는 UI
+
+- **포스트 상세**: 헤더 아래에 시리즈 목차 + 이전/다음 네비게이션
+- **포스트 목록**: 날짜 옆에 파란색 시리즈 배지 (`시리즈명 #순서`)
