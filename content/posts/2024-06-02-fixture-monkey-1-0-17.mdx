@@ -1,97 +1,106 @@
 ---
 title: "Fixture monkey 1.0.17 출시"
-description: " Fixture Monkey?  Fixture Moneky 는 다음과 같이, 손쉽게 랜덤객체를 생성해주는 매우 유용한 도구이다.  처음엔 Fixture Monkey 에 회의적 이었다  처음 Fixture Monkey 를 봤을땐 회의적 이었었다. 별도로 제어하지 않는 필"
+description: "Fixture Monkey를 쓰면서 느낀 점과 1.0.17 업데이트 요약."
 date: "2024-06-02"
 published: true
-tags: []
+tags: ["java", "testing", "fixture-monkey"]
 ---
 
-### Fixture Monkey?
+## Fixture Monkey?
 
-Fixture Moneky 는 다음과 같이, 손쉽게 랜덤객체를 생성해주는 매우 유용한 도구이다.
+Fixture Monkey는 랜덤 객체를 손쉽게 만들어주는 유용한 도구다.
 
-```java 
+```java
 // 예)
 fixtureMonkey.giveMeBuilder(Product.class)
     .set("id", 1000);
-
 ```
 
-### 처음 Fixture Monkey를 접했을땐..
+## 처음 접했을 때 걸렸던 점
 
-처음 Fixture Monkey 를 봤을땐 몇가지 문제는 조금 걸렸었다.
-(물론 충분히 유용했기 때문에 불편하다 정도였지만..)
+처음엔 몇 가지가 마음에 걸렸다.
+(물론 충분히 유용했기 때문에 불편한 정도였다)
 
-별도로 제어하지 않는 필드들은 극단적인 값들이 할당 됐었다.
-예를들어 도메인 구조상 100정도면 될 필드에, MAX_VALUE 를 설정하곤 한다.
-요게 문제가 되는건 간헐적으로 발생 한다는 것이다.
-작성자는 발견하지 못한채 push 하지만, 오류는 다른 사람이 수정 해야 하는건 정말 귀찮은 일이다.
-극단값 설정의 취지는 이해하지만, 모든 팀원이 같은 생각을 갖도록 하는건 다른 문제가 있다.
+### 1. 극단값 문제
 
-당연히 제한값을 설정할순 있다.
-jakrat.validation을 인식한다.
-예를들어 @NotNull 을 붙여주면 null 을 주입하지 않는다.
-하지만 엔티티에 해당 어노테이션을 달고 싶지 않았다.
-invariant나 post-condition 을 좀더 중요시 하고있었기 때문이다.
-테스트 도구를 위해 어노테이션을 달자고 말하기엔 더 고민이 필요했다.
+별도로 제어하지 않는 필드에 극단값이 들어간다.
+예를 들어 도메인상 100 정도면 되는 필드에 `MAX_VALUE`가 들어간다.
+이게 문제인 건 간헐적으로 발생한다는 점이다.
+작성자는 놓치고 push하고, 다른 사람이 오류를 잡는다.
+극단값의 취지는 이해하지만 팀 전체가 같은 생각일 순 없다.
 
+### 2. 어노테이션 의존
 
-또다른 문제는 type-safe 하지 못하다는것 이었다.
-id 에 1000을 고정 했지만, 프로퍼티명이 바뀌면 아무 이상을 감지하지 못한다.
-마찬가지로 이런건 간헐적으로 실패한다.
+당연히 제한값을 설정할 수는 있다.
+`jakarta.validation`도 인식한다.
+`@NotNull`을 붙이면 null을 주입하지 않는다.
 
+하지만 엔티티에 그 어노테이션을 달고 싶지 않았다.
+invariant나 post-condition을 더 중요하게 보고 있었기 때문이다.
+테스트 도구를 위해 어노테이션을 달자는 건 고민이 필요했다.
 
-### 그럼에도 Fixture Monkey
+### 3. 타입 세이프하지 않음
 
-일단 잘 동작한다. record 타입, jackson 객체, lombok 객체, 복합객체, 깊은객체 모두 매끄럽게 동작한다.
+아래처럼 `id`를 고정해도, 프로퍼티명이 바뀌면 감지하지 못한다.
+이 역시 간헐적으로 실패한다.
 
-적절한 버전업이 잘 되고있다.
-옛날에 javax -> jakarta 로 바꼈을때 호환이 안됐었는데 jakarta 플러그인이 있어 금방 해결했던 기억이 있다.
-이번 1.0에 나온 javagetter 덕분에 type-safe하게 (필드명이 바껴도 컴파일 탐지가 가능하게) 되었다.
+## 그럼에도 Fixture Monkey
+
+일단 잘 동작한다.
+record 타입, Jackson 객체, Lombok 객체, 복합/깊은 객체 모두 매끄럽게 된다.
+
+버전업도 꾸준히 진행된다.
+예전에 `javax -> jakarta` 변경 때 호환 이슈가 있었지만
+jakarta 플러그인 덕분에 빨리 해결됐다.
+
+이번 1.0에 나온 `javagetter` 덕분에 타입 세이프하게 쓸 수 있게 됐다.
+필드명이 바뀌어도 컴파일 타임에 감지가 가능하다.
+
 ```java
-        // given
-        FixtureMonkey sut = FixtureMonkey.builder()
-            .objectIntrospector(ConstructorPropertiesArbitraryIntrospector.INSTANCE)
-            .build();
+// given
+FixtureMonkey sut = FixtureMonkey.builder()
+    .objectIntrospector(ConstructorPropertiesArbitraryIntrospector.INSTANCE)
+    .build();
 
-        // when
-        OrderRecord actual = sut.giveMeBuilder(OrderRecord.class)
-            .set(javaGetter(OrderRecord::orderNo), "1")
-            .set(javaGetter(OrderRecord::productName), "Line Sally")
-            .minSize(javaGetter(OrderRecord::items), 1)
-            .sample();
+// when
+OrderRecord actual = sut.giveMeBuilder(OrderRecord.class)
+    .set(javaGetter(OrderRecord::orderNo), "1")
+    .set(javaGetter(OrderRecord::productName), "Line Sally")
+    .minSize(javaGetter(OrderRecord::items), 1)
+    .sample();
 
-        // then
-        then(actual.orderNo()).isEqualTo("1");
-        then(actual.productName()).isEqualTo("Line Sally");
-        then(actual.items()).hasSizeGreaterThanOrEqualTo(1);
+// then
+then(actual.orderNo()).isEqualTo("1");
+then(actual.productName()).isEqualTo("Line Sally");
+then(actual.items()).hasSizeGreaterThanOrEqualTo(1);
 ```
 
-꼭 javagetter같은걸 쓰지 않더라도, [Intellij IDE 플러그인](https://plugins.jetbrains.com/plugin/19589-fixture-monkey-helper)도 을 쓰면, 존재하지 않는 필드에 대해서는 빨갛게 표시해주기도 한다.
-자동완성 기능도 매우 유용하니, Fixture Monkey를 쓰고있다면 꼭 설치를 권한다.
+`javagetter`를 쓰지 않더라도,
+[IntelliJ 플러그인](https://plugins.jetbrains.com/plugin/19589-fixture-monkey-helper)을 쓰면
+존재하지 않는 필드는 빨갛게 표시해 준다.
+자동완성도 유용하니 Fixture Monkey를 쓴다면 설치를 추천한다.
 
+## 1.0.17 업데이트
 
+1.0.17에는 극단값을 쓰지 않는 `SimpleValueJqwikPlugin`이 나왔다.
+일반적인 값으로 generator를 조정해야 하나 고민하던 차에 반가웠다.
 
+## 참고
 
+공식 문서가 한글이고 네이버 오픈소스라는 점에서 정이 간다.
 
-1.0.17 에선, 극단적인 값을 쓰지 않는 `SimpleValueJqwikPlugin` 이 나왔다.
-그렇잖아도 일반적인 값으로 셋팅하도록 generator 를 조정해서 써야 하나 싶던 차에 반가운 소식이었다.
+- https://naver.github.io/fixture-monkey/v1-0-0-kor/docs/introduction/overview/
 
+예를 들어, 아래 문서를 참고해서
+`@Column`의 nullable을 기준으로 nullability를 제어한 적이 있다.
 
-[공식문서](https://naver.github.io/fixture-monkey/v1-0-0-kor/docs/introduction/overview/) 가 한글이고 네이버의 오픈소스라는 점에서도 정이 간다.
-예를들어, [NullInjectGenerator](https://naver.github.io/fixture-monkey/v1-0-0-kor/docs/fixture-monkey-options/customization-options/#nullinjectgenerator) 을 참고해서 @Column 어노테이션의 nullable을 참조하여 nullability를 제어한적이 있다.
+- https://naver.github.io/fixture-monkey/v1-0-0-kor/docs/fixture-monkey-options/customization-options/#nullinjectgenerator
 
-[JavaTypeArbitraryGenerator](https://naver.github.io/fixture-monkey/v1-0-0-kor/docs/fixture-monkey-options/customization-options/#%ec%96%b4%eb%85%b8%ed%85%8c%ec%9d%b4%ec%85%98%ec%9d%84-%ec%82%ac%ec%9a%a9%ed%95%b4-java-%ea%b8%b0%eb%b3%b8-%ed%83%80%ec%9e%85-%ec%a0%9c%ec%95%bd-%ec%b6%94%ea%b0%80%ed%95%98%ea%b8%b0) 를 참고하면 @Column 어노테이션의 size를 활용하여 제어할수 있을듯 하다.
+아래 문서를 보면 `@Column`의 size를 활용해 제어할 수도 있을 것 같다.
 
+- https://naver.github.io/fixture-monkey/v1-0-0-kor/docs/fixture-monkey-options/customization-options/#%ec%96%b4%eb%85%b8%ed%85%8c%ec%9d%b4%ec%85%98%ec%9d%84-%ec%82%ac%ec%9a%a9%ed%95%b4-java-%ea%b8%b0%eb%b3%b8-%ed%83%80%ec%9e%85-%ec%a0%9c%ec%95%bd-%ec%b6%94%ea%b0%80%ed%95%98%ea%b8%b0
 
+## 결론
 
-
-
-
-
-
-결론은.. 여러모로 잘 지원되고 있는 프로젝트라는 느낌을 받았다.
-좀더 적극적으로 써볼 예정.
-
-
-
+여러모로 잘 지원되는 프로젝트라는 느낌을 받았다.
+앞으로도 좀 더 적극적으로 써볼 예정이다.

@@ -1,53 +1,50 @@
 ---
 title: "Mac 환경 변수 클라우드 동기화"
-description: "키가 많다면, 여러 컴퓨터에서 관리하기엔 버겁다.환경 변수를 zprofile과 icloud를 이용해 여러 컴퓨터에서 동기화 하는법을 알아보자.(참고) zprofile 과 zshrc 의 차이 : https&#x3A;//www.reddit.com/r/zsh/comments"
+description: "zprofile과 iCloud를 이용해 환경 변수를 여러 Mac에서 공유하는 방법."
 date: "2025-07-13"
 published: true
-tags: []
+tags: ["mac", "zsh", "env", "icloud"]
 ---
 
-요즘 이런저런 키 발급이 많아지면서 여러 컴퓨터에서 관리하는데 어려움이 있다.
-환경 변수를 zprofile과 icloud를 이용해 여러 컴퓨터에서 동기화 하는법을 알아보자.
+## 여러 Mac에서 환경 변수 동기화하기
 
+요즘 키 발급이 많아지면서, 여러 컴퓨터에서 관리하기가 꽤 번거롭다.
+`zprofile`과 iCloud를 이용해 환경 변수를 동기화하는 방법을 정리해본다.
 
-> (참고) zprofile 과 zshrc 의 차이 : https://www.reddit.com/r/zsh/comments/e882c4/what_is_the_difference_between_zshrc_and_zprofile/?tl=ko
+> (참고) zprofile과 zshrc의 차이
+> https://www.reddit.com/r/zsh/comments/e882c4/what_is_the_difference_between_zshrc_and_zprofile/?tl=ko
 
+## zprofile에 환경 변수 추가
 
-## zprofile에 환경변수 추가
+### 1. 편집 및 반영
 
-편집 및 반영
-```
+```bash
 vi ~/.zprofile # 편집
 source ~/.zprofile # 반영
-``` 
+```
+
 ![](/images/posts/b0dc63ab-e80d-474d-b46b-2d3460ace247-image.png)
 
+### 2. 반영 확인
 
-
-잘 반영됏는지 확인
-```
+```bash
 echo $NOTION_API_KEY
 ```
 
+## iCloud로 옮기고 심볼릭 링크
 
+### 1. 로컬 `.zprofile`을 iCloud로 이동
 
-## 심볼릭 링크
-
-로컬의 `.zprofile` 을 클라우드로 이동
-
-```
+```bash
 mv ~/.zprofile ~/Library/Mobile\ Documents/com~apple~CloudDocs/dots/
 ```
 
-클라우드의 파일을 로컬로 링크
-```
+### 2. iCloud 파일을 로컬에 링크
+
+```bash
 ln -s ~/Library/Mobile\ Documents/com~apple~CloudDocs/dots/.zprofile ~/.zprofile
 ```
 
-결과 확인
+### 3. 결과 확인
 
 ![](/images/posts/f16aa993-ba79-4e19-8137-818f29bc50fa-image.png)
-
-
-
-

@@ -1,69 +1,66 @@
 ---
 title: "IntelliJ profiler 소개 (with JFR)"
-description: "JVM 심층분석을 할수 있도록 아래 두 도구를 지원한다. JFR(java fligth recorder) JMC(java mission control)flight recorder 는 번역하면 항공 블랙박스 이다.어느정도 의미 전달이 되긴 하지만, 좀더 직역하기 좋게 심층"
+description: "JFR/JMC와 IntelliJ Profiler를 함께 정리해 본다."
 date: "2025-02-01"
 published: true
-tags: []
+tags: ["java", "jfr", "intellij", "profiling"]
 ---
 
-## 전통적인 진단도구 JFR (+JMC) 간단 소개
+## JFR + JMC 간단 소개
 
-이러한 JVM 정보들이 필요할수가 있다.
-메모리 누수, 경합현상, 병목현상을 해결할때 도움이 된다.
+이런 JVM 정보가 필요할 때가 있다.
+메모리 누수, 경합, 병목을 추적할 때 특히 그렇다.
 
 1. CPU 사용량 분석
 2. 메모리 사용량 추적 (Heap, GC 이벤트 등)
 3. 스레드 동작 분석
 4. JVM 내부 이벤트 모니터링
-5. 네트워크, 파일 I/O, JDBC 호출 추적
+5. 네트워크/파일 I/O, JDBC 호출 추적
 6. ...
 
-이럴 때 필요한것이 진단도구 이다.
-오라클 핫스폿 JVM은 기본적으로 JFR 을 제공하고 있고, 녹화된 파일을 JMC 같은 도구로 분석할수 있다.
-즉 두 도구는 세트로 봐도 된다.
+이럴 때 필요한 것이 진단 도구다.
+오라클 HotSpot JVM은 기본적으로 JFR을 제공하고,
+녹화된 파일을 JMC로 분석한다.
+즉, 두 도구는 세트로 보는 게 편하다.
 
-1. JFR(java fligth recorder)   // 녹화도구
+1. JFR(java flight recorder)   // 녹화 도구
 2. JMC(java mission control)   // GUI 분석기
 
+> 두 도구를 소개하는 페이지들은 표현이 제각각이었다.
+> 블랙박스, 진단도구, 심층분석기, 프로파일러, 이벤트 수집 도구 등.
+> 여기서는 그냥 진단 도구라고 부르겠다.
+> https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170
+> https://blogs.oracle.com/javakr/post/diag-tool
+> https://www.baeldung.com/java-flight-recorder-monitoring
 
-> 두 도구를 소개하는 페이지들을 뭐라 딱 정의해서 부르지 않고 페이지마다 제각각 이더라.
-> 블랙박스, 진단도구, 심층분석기, 프로파일러, 이벤트수집도구.. 여기선 그냥 진단도구 라고 하겠다.
-- https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170
-- https://blogs.oracle.com/javakr/post/diag-tool
-- https://www.baeldung.com/java-flight-recorder-monitoring
+진단까지의 흐름은 약간 번거롭다.
+도구가 어렵다기보다 설치/명령어/파일 포맷이 번거롭다.
 
-
-
-진단 하기 까지 과정은 약간 번거롭다.
-도구 사용법 자체가 어렵다기 보다는, JMC는 따로 설치가 필요하기도 하고, JFR 명령어 숙지도 해야한다. 
-생소한 확장자의 파일도 다뤄야 한다.
-
-1. 어플리케이션 실행
+1. 애플리케이션 실행
 2. JFR 실행
-3. 분석하고자 하는 핸들러 실행
-4. JFR 종료 (녹화파일인 `.jfr` 파일이 생성된다)
-5. `.jfr` 파일을 JMC 에서 실행하여 확인
+3. 분석할 핸들러 실행
+4. JFR 종료 (`.jfr` 파일 생성)
+5. `.jfr` 파일을 JMC에서 열어 분석
 
-
-아무튼 위 절차를 마치면 JMC 를 통해서 프로파일링(심층분석) 이 가능해진다.
+절차를 마치면 JMC로 프로파일링(심층분석)이 가능하다.
 ![](/images/posts/271561cb-9a2d-4ecb-a066-acc350365190-image.png)
 - 출처 : https://javakr.medium.com/java-mission-control-%EC%82%AC%EC%9A%A9%EB%B2%95-45da89c6dc89
 
+참고로 JFR은 **실행 중인 JVM**도 pid만 있으면 녹화할 수 있다.
+그리고 대부분의 이벤트는 오버헤드가 거의 없다고 한다.
+([참고](https://blogs.oracle.com/javakr/post/diag-tool))
 
+즉, 실행 중인 인스턴스에서 `.jfr`만 추출해 와도 로컬에서 분석이 가능하다.
 
-
-참고로 JFR의 키 피쳐중 하나는, 이미 실행중인 Jvm에 대해서도 pid만 있으면 녹화가 가능하다는 것이다.
-또한 대부분의 이벤트의 경우 오버헤드가 거의 없다고 한다. ([참고](https://blogs.oracle.com/javakr/post/diag-tool))
-즉, 실행중인 인스턴스에서 .jfr 만 추출해오면 로컬에서 얼마든지 분석할수가 있다.
-```
-$ jcmd <pid> JFR.start name=Recording1 settings=default 
+```bash
+$ jcmd <pid> JFR.start name=Recording1 settings=default
 $ jcmd <pid> JFR.dump filename=recording.jfr
 $ jcmd <pid> JFR.stop
 ```
 
+애플리케이션 시작 시점에 옵션으로 녹화를 붙이는 것도 가능하다.
+다만 옵션이 많아서 매번 `man`을 봐야 하는 게 번거롭다.
 
-물론 어플리케이션 실행 시점에 옵션을 줘서 함께 실행 시킬수도 있다.
-얼마나 오래 실행시킬지 등의 옵션이 있는데, 마찬가지로 man 보는건 번거롭다.
 ```
 -XX:StartFlightRecording:disk=true,\
 filename=svc/sandbox/service.jfr,\
@@ -71,72 +68,69 @@ maxage=12h,\
 settings=profile
 ```
 
-요약하자면, JFR + JMC 는 JVM을 심층분석 할수 있는 진단 도구로, 매우 유용하지만 약간 번거로운 도구이다.
-
-
+요약하면, JFR + JMC는 매우 유용하지만 약간 번거로운 진단 도구다.
 
 ## IntelliJ Profiler 소개
-IntelliJ Profiler는 내장 되어있는 진단도구 이다. 
-이걸로 손쉽게 진단할수 있어서 JFR + JMC 를 대체할수 있다.
 
+IntelliJ Profiler는 **IDE 내장 진단 도구**다.
+JFR + JMC를 대체할 수 있을 만큼 편하다.
 
-특장점 :
-1. JFR 관련 커맨드라인 명령어를 몰라도 된다.
-2. .jfr 파일이 어디에 떨어지고 어디 넣어야 되는지 몰라도 된다. (내부적으론 JFR을 쓰고있다)
-2. JMC 같은 모니터 도구 설치가 필요 없다.
-3. **IDEA 내에서 소스코드와 곁들여 볼수있다.**
+장점:
+1. JFR 커맨드라인을 몰라도 된다.
+2. `.jfr` 파일 위치를 몰라도 된다. (내부적으로 JFR 사용)
+3. JMC 같은 GUI 도구를 따로 설치할 필요가 없다.
+4. **IDEA 안에서 소스와 함께 볼 수 있다.**
 
-자세한 설명은 아래를 참고할수 있다.
-- [IntelliJ Profiler 피쳐 소개](https://www.jetbrains.com/pages/intellij-idea-profiler/)
-
+자세한 설명은 아래를 참고.
+- [IntelliJ Profiler 피처 소개](https://www.jetbrains.com/pages/intellij-idea-profiler/)
 
 ### IntelliJ Profiler 핸즈온
 
-그저 아래와 같이 간단하게 옵션 실행시키면 진단이 시작 된다.
+아래처럼 옵션 실행만 하면 진단이 시작된다.
+
 ![](/images/posts/c496ca10-5385-46f6-b99a-9f192de8695a-image.png)
 
-또는 이미 실행중인 프로세스를 녹화도 가능하다.
-아래와 같이 Attatch.. 를 누르면 된다. 
-JFR 소개 에서 설명했듯, 이미 실행중인 프로세스의 PID 를 이용해 녹화를 시작하는 개념이다.
-눈썰미가 좋은분들은 보셨겠지만 메모리스냅샷, 덤프, 라이브차트 기능도 있으며 하나같이 매우 유용한 기능이다.
+이미 실행 중인 프로세스도 녹화 가능하다.
+`Attach...`로 PID를 찍어 시작하는 방식이다.
+메모리 스냅샷, 덤프, 라이브 차트 기능도 있어서 매우 유용하다.
+
 ![](/images/posts/b46b1c19-8748-4f56-8bf5-1a0119b165db-image.png)
 
+JMC와 차별화되는 장점은 **소스 코드의 병목 구간을 시각화**해서 볼 수 있다는 점이다.
 
-JMC에 비해 차별화된 장점은, 에디터에서 어느 구간이 병목인지 시각적으로 볼수 있다는 것이다.
 ![](/images/posts/b7e91b43-6e29-49da-a550-7bc21065486d-image.png)
 
-
-전반의 자세한 설명은 아래 튜토리얼 링크로 대체한다.
-디버깅 해가는 과정을 익힐수 있으니 도움이 될것이다.
+전체 흐름은 아래 튜토리얼로 충분히 익힐 수 있다.
 - [IntelliJ Profiler 튜토리얼](https://blog.jetbrains.com/idea/2021/05/get-started-with-profiling-in-intellij-idea/)
 
-
-위 튜토리얼에 소개되지 않았으나, 내생각에 매우 유용한 기능들을 몇개 더 소개 해본다.
+### 유용한 기능 몇 가지 더
 
 #### 메모리 보기 기능
 
-아래 코드는 static 변수에 무한으로 계속 밀어넣는 코드이다. 
-당연히 메모리 사용량은 계속 늘어날 것이다. 
-이때는 다음과 같이 메모리 할당 기준으로 스위치해서 보면 용이하다. 
+아래 코드는 static 변수에 무한으로 계속 넣는 코드다.
+당연히 메모리는 계속 늘어난다.
+이때 메모리 할당 기준으로 스위치해서 보면 추적이 쉬워진다.
 
 ![](/images/posts/f08d52d0-e77a-4331-b067-93e40101ed34-image.png)
 
-라이브로 메모리와 CPU를 추적할수 있다. Heap Memory는 계속 늘어만 가는 모습을 볼수 있다.
+라이브로 메모리와 CPU를 추적할 수도 있다.
+Heap Memory가 계속 늘어나는 모습을 볼 수 있다.
+
 ![](/images/posts/f6a9b0cc-4a56-4cac-9236-04034e747566-image.png)
 
+JVM events도 확인 가능하다.
+GC가 몇 번 일어났는지도 보여줘서 메모리 릭 추적에 도움이 된다.
 
-jvm events 도 볼수 있다.
-GC가 몇번 일어났는지도 볼수 있어서 메모리릭을 추적하는데 도움이 될수 있다.
 ![](/images/posts/181a72a9-db0d-404b-b63c-c2b18f2e1be9-image.png)
-> 아쉽게도 메이저 gc 여부는 안보이는것 같다. 또한 old 영역은 사이즈도 안보이는것 같다.
-> 시간을 더 길게 테스트 해보면 다른 특이점을 볼수 있을것 같기도 하다. 
-> heap 메모리 크기를 아주 작게 해둔다던지 테스트를 여러 방법으로 해볼순 있을듯 하다.
 
+> 아쉽게도 메이저 GC 여부는 안 보이는 듯하다.
+> old 영역의 사이즈도 확인되지 않는다.
+> 시간을 더 길게 테스트하면 다른 특이점을 볼 수 있을지도 모르겠다.
+> heap 메모리를 아주 작게 설정해서 테스트해 보는 것도 방법이다.
 
+재현용 코드는 아래에 첨부한다.
 
-
-코드는 참고차 첨부하니 재현이 필요하면 참고 바란다.
-```java 
+```java
 public class MemoryLeakExample {
     private static final List<byte[]> memoryLeakList = new ArrayList<>();
 
@@ -156,47 +150,38 @@ public class MemoryLeakExample {
 }
 ```
 
-
-
 #### 스냅샷 기능 (덤프 및 분석)
 
-실행중인 jvm 에 대해 이렇게 스냅샷을 찍을수도, 덤프를 뜰수도 있다.
+실행 중인 JVM에 스냅샷을 찍거나 덤프를 뜰 수도 있다.
+
 ![](/images/posts/9dd152de-cac9-4a2a-b3b0-76b9ec7beec4-image.png)
 
-물론 덤프를 분석할수도 있다. 
-역시나 `byte[]` 용량이 압도적으로 큰것을 볼수있다. 
+덤프를 분석하면, `byte[]` 용량이 압도적으로 큰 것도 바로 확인된다.
+
 ![](/images/posts/6d2962fe-5e54-4a25-8e1c-a2dbc83e29c6-image.png)
-
-
-
-
 
 ## JFR과 JMC는 과거의 유산 아니었나?
 
-내 오랜 기억에선 JFR과 JMC는 인기가 없었다.
-일단 가장 큰 이유로는 유료였다. (8까진 유료, 11부터 오픈소스화 되었다)
-그리고 효용성이 별로 없었다.
-- 예전과 달리 스케일아웃이 너무 쉬워져서 심층분석 해가며 최적화를 할 일이 없어짐 (roi가 안나옴)
-- 메모리 릭 등 서버가 뻗는것을 잡아내는데 매우 유용하지만, 이런 케이스는 대체로 힙덤프로 검사했음
-- 심층분석은 1개 jvm 에 대해서만 가능하다는 한계점
-  - 때문에 cpu/mem 같은 간단한 리소스 분석은 뉴렐릭이나 데이터독같은 통합 모니터링 도구에 의존하거나,
-  - aws 같은데서 인스턴스 메트릭을 너무쉽게 제공해줌
+내 기억에선 한동안 인기가 없었다.
+가장 큰 이유는 유료였다. (Java 8까지 유료, 11부터 오픈소스화)
+그리고 효용이 낮다고 느껴지는 시기도 있었다.
 
+- 스케일아웃이 너무 쉬워져서 심층분석 최적화의 ROI가 낮아짐
+- 메모리 릭 같은 케이스는 보통 힙 덤프로 대응
+- 심층분석은 1개 JVM에 대해서만 가능
+  - CPU/Mem은 뉴렐릭, 데이터독 같은 통합 모니터링에 의존
+  - AWS에서 인스턴스 메트릭을 쉽게 제공
 
-하지만 현재까지도 계속 관리 되고있는 피쳐라서 신뢰가 간다.
-자바14 부터는 .jfr 파일을 스트리밍하여 뉴렐릭같은 통합모니터링 도구가 가져갈수 있도록 api가 추가 되었다.
+하지만 지금도 계속 관리되는 기능이라 신뢰가 간다.
+Java 14부터는 `.jfr` 파일을 스트리밍해 뉴렐릭 같은 도구가 가져갈 수 있는 API가 추가됐다.
 - https://openjdk.org/jeps/349
 
-자바21 부터는 터미널에서도 간편하게 볼수 있도록 view command 가 나왔다고 한다.
+Java 21부터는 터미널에서도 간편하게 볼 수 있는 `view` 커맨드가 생겼다고 한다.
 - https://www.baeldung.com/java-flight-recorder-view
 
-
-
-
 ## 마치며
-JFR, JMC 는 병목현상을 추적하거나 메모리릭을 잡는데는 여전히 유용한 도구이다.
-하지만 모니터링 GUI 도구 설치와 CLI 명령어를 숙지해야 하는 등 사용이 번거로우니 Intellij 프로파일러를 써보는것도 좋겠다.
-특히 IDEA에 통합되어 추적 가능하단것은 JMC 는 가질수 없는 큰 혜택이다.
 
-
-
+JFR/JMC는 병목 추적이나 메모리 릭 분석에 여전히 유용하다.
+다만 설치와 명령어가 번거롭다.
+IntelliJ Profiler는 그 과정을 훨씬 줄여준다.
+특히 **IDEA 안에서 소스와 함께 볼 수 있다는 점**이 큰 장점이다.

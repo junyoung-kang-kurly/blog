@@ -1,18 +1,25 @@
 ---
 title: "제네릭은 런타임에 소거 되지만, 런타임에 리플렉션이 제네릭 정보를 알수 있는 이유"
-description: " 제네릭은 런타임에선 소거된다 소거되는 이유는 jdk1.5에 제네릭이 추가되면서 하위호환을 위한것인데, 자세한 이유와 이러한 구조적 한계로 생기는 문제들은 여기 서 자세히 참고할수 있다. > 이외에도 소거로 인해 발생하는 문제가 더 있었던거 같은데 다음에 추가해 보자."
+description: "제네릭 소거와 바이트코드 메타데이터, 리플렉션의 관계를 정리."
 date: "2024-10-12"
 published: true
-tags: []
+tags: ["java", "generics", "reflection", "jvm"]
 ---
 
-### 제네릭은 런타임에선 소거된다
-소거되는 이유는 jdk1.5에 제네릭이 추가되면서 하위호환을 위한것인데, 자세한 이유와 이러한 구조적 한계로 생기는 문제들은 [여기](https://lifework-archive-reservoir.tistory.com/313) 서 자세히 참고할수 있다.
-> 이외에도 소거로 인해 발생하는 문제가 더 있었던거 같은데 다음에 추가해 보자.
+## 제네릭은 런타임에선 소거된다
 
-### 리플렉션은 제네릭 정보를 알수있다
+제네릭은 런타임에서 소거된다.
+이유는 JDK 1.5에 제네릭이 추가되면서 하위호환을 위해서다.
+자세한 이유와 구조적 한계는 아래 글을 참고했다.
 
-아래처럼 리플렉션으로 `myMethod` 메소드의 반환타입을 출력해보면 정상적으로 `List<String>` 를 출력한다.
+- https://lifework-archive-reservoir.tistory.com/313
+
+> 이외에도 소거로 인해 발생하는 문제가 더 있었던 것 같은데 다음에 추가해 보자.
+
+## 리플렉션은 제네릭 정보를 알 수 있다
+
+아래처럼 리플렉션으로 `myMethod`의 반환 타입을 출력하면
+정상적으로 `List<String>`이 출력된다.
 
 ```java
 public class MyClass {
@@ -26,29 +33,26 @@ public static void main(String[] args) throws NoSuchMethodException {
     Method hello = clazz.getDeclaredMethod("myMethod", null);
     Type genericReturnType = hello.getGenericReturnType();
     System.out.println(genericReturnType);  // java.util.List<java.lang.String>
-}    
+}
 ```
 
-### 갑작스런 의문
+## 갑작스런 의문
 
-이때 갑작스레 '리플렉션으로는 제네릭 을 알수있을까?' 라는 의문이 들었다. 
-왜냐하면 리플렉션은 Class 를 이용한 API 이고 바이트코드를 이용한다.
-이때, 이때 실행되는것은 런타임일 것이니... 
-혹시나 리플렉션에선 제네릭을 못쓰는것은 아닐까 하는 궁금증이 생겼다.
-(자바 플랫폼에 대한 지식이 낮기 때문에 생긴 의혹이다)
+이때 갑자기 "리플렉션으로는 제네릭을 알 수 있을까?"라는 의문이 들었다.
+리플렉션은 Class 기반 API이고 바이트코드를 읽는다.
+런타임에서 동작하니 제네릭을 못 쓰는 게 아닐까 싶었다.
+(자바 플랫폼에 대한 지식이 낮아서 생긴 의혹이다)
 
+## 바이트코드로 확인한 제네릭 메타데이터
 
-### 바이트코드로 확인한 제네릭 메타데이터
+결론은 바이트코드에 제네릭 정보가 남아있기 때문이다.
+아래는 `javap`로 확인한 바이트코드다.
+`java.util.List<java.lang.String> myMethod();` 부분이 보인다.
 
-리플렉션에서 제네릭을 쓸수있는 이유는, 너무나 당연하게도 바이트코드 에서는 제네릭 정보가 남아있기 때문이다.
+### javap
 
-아래는 javap 로 확인해본 바이트코드 인데, `java.util.List<java.lang.String> myMethod();` 부분을 확인해 볼수 있었다.
-
-
-#### javap
-
-``` 
- javap -v -s MyClass                                                                                                                                          
+```bash
+javap -v -s MyClass
 Classfile /Users/bonjugi/IdeaProjects/temp/out/production/temp/MyClass.class
   Last modified 2024. 10. 12.; size 397 bytes
   SHA-256 checksum d6457f46eba7520d1e30f7bd915aa4b8733c9fee241156a66172b554c6be2fb5
@@ -110,30 +114,25 @@ Constant pool:
     Signature: #17                          // ()Ljava/util/List<Ljava/lang/String;>;
 }
 SourceFile: "MyClass.java"
-
 ```
 
+`descriptor`와 `Signature`가 둘 다 표기돼 있다.
+둘의 차이는 제네릭 정보가 있느냐 없느냐다.
+정확히는 모르겠지만, 제네릭이 1.5에 추가되며 하위호환을 유지해야 했고
+그 흔적이 스펙에 남은 걸로 보인다.
+리플렉션 API도 `getType`과 1.5에 추가된 `getGenericType`이 따로 있다.
 
-`descriptor` 부분과, `Signature` 두개가 표기 되어있다. 둘은 제네릭이 없고 있고의 차이가 있다.
-정확하게는 모르겠지만, 제네릭이 jdk1.5에 추가 되면서 하위호환을 유지하고 있다는 히스토리가 있었다. 
-두 스펙도 마찬가지로 제네릭이 있는부분과 없는부분을 각자의 스펙으로 둔게 아닐까 유추해 본다.
-실제로 리플렉션 api도 보면 getType이 있고, 1.5에 추가 된 getGenericType이 별도로 있다.
+Oracle JVM 스펙 문서에도 1.5에 추가됐다고 쓰여 있다.
 
-[oracle jvm 스펙](https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.9) 문서를 참고하면 다음과 같이 1.5에 추가되어있다고 쓰여있기도 하다.
-
+- https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.9
 
 ![](/images/posts/67704d7e-a7e7-40f4-9597-514f154f9431-image.png)
 
+### IDE
 
-
-
-
-
-#### idea
-
-아래와 같이 IDE 에서도 바이트코드를 볼수 있다.
-javap와는 포맷이 조금 다른데, 정보 자체는 다르지 않다.
-오히려 가독성은 훨씬 더 좋은것 같다. 
+IDE에서도 바이트코드를 볼 수 있다.
+`javap`와 포맷이 다르지만 정보는 같다.
+오히려 가독성은 더 좋다.
 
 ```java
 // class version 66.0 (66)
@@ -169,11 +168,11 @@ public class MyClass {
 }
 ```
 
-### 결론
-제네릭의 런타임 소거된다. 
-이와는 별개로, 런타임에서 바이트코드를 참조하는 리플렉션은 여전히 읽는데 문제가 없다.
-바이트코드의 메타데이터에 제네릭 정보가 포함되어있기 때문이다.
-리플렉션은 객체를 로딩하는게 아니라 클래스 메타데이터를 읽어들이는것이라 전혀 관계가 없다.
+## 결론
 
-제네릭은 1.5에 추가되었으며 하위호환을 유지하고있다.
-그로 인해 jvm 스펙 여기저기 1.5 전후로 흔적이 있는것 같다 (내생각)
+제네릭은 런타임에 소거된다.
+하지만 리플렉션은 바이트코드의 메타데이터를 읽기 때문에 제네릭 정보를 알 수 있다.
+리플렉션은 객체를 로딩하는 게 아니라 클래스 메타데이터를 읽는다는 점에서 관계가 없다.
+
+제네릭은 1.5에 추가되었고 하위호환을 유지한다.
+그래서 JVM 스펙 곳곳에 1.5 전후 흔적이 남아 있는 듯하다.

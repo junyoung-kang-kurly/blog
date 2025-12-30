@@ -1,8 +1,9 @@
 "use client";
 
+import { createElement } from "react";
 import * as runtime from "react/jsx-runtime";
 
-const useMDXComponent = (code: string) => {
+const getMDXComponent = (code: string) => {
   const fn = new Function(code);
   return fn({ ...runtime }).default;
 };
@@ -12,6 +13,6 @@ interface MDXContentProps {
 }
 
 export function MDXContent({ code }: MDXContentProps) {
-  const Component = useMDXComponent(code);
-  return <Component />;
+  const Component = getMDXComponent(code);
+  return createElement(Component);
 }

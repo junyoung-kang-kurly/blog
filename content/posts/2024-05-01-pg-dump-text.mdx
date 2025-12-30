@@ -1,90 +1,84 @@
 ---
 title: "pg_dump text 덤프와 복원"
-description: "pg_dump 로 text 형식의 파일을 덤프받았는데 용량이 너무 크면 편집이 안된다.테이블이름을 변경하고싶을때, sed 를 쓰면 된다.sed 는 스트림 에디터로, 한번에 파일을 로드하는게 아니라 스트리밍 형식으로 수정할수 있다.자세한 사용법은 아래를 참고할수 있다.h"
+description: "pg_dump plain 덤프를 sed로 수정하고 psql로 복구하는 방법."
 date: "2024-05-01"
 published: true
-tags: []
+tags: ["postgresql", "pg_dump", "psql", "database"]
 ---
-
-
-
 
 ## pg_dump plain
 
-pg_dump 로 plain 덤프파일은 직접 편집해야 하는데 용량이 너무 커서 편집이 안된다.
-테이블이름을 변경하고싶다면 sed로 편집할수 있다.
-그리고 복구할때 pg_restore가 아니라 psql 을 써야한다.
-
+pg_dump로 plain 덤프 파일을 만들면 직접 편집해야 할 때가 있다.
+용량이 너무 큰 경우엔 일반 편집기가 버겁다.
+이럴 땐 `sed`로 수정하는 게 편하다.
+복구는 `pg_restore`가 아니라 `psql`을 써야 한다.
 
 ### plain 덤프
 
-pg_dump 를 할때 포맷옵션으로 plain 을 쓰면 된다.
+pg_dump에서 포맷 옵션으로 plain을 쓰면 된다.
 
-```
+```bash
 /opt/homebrew/opt/libpq/bin/pg_dump \
 -h localhost \
 -U {user_name} \
--d {db_name \
+-d {db_name} \
 -t public.{table_name} \
 -F plain \
 -f /Users/bonjugi/test-dump1.sql
-
 ```
-
 
 ### sed 사용법
 
-```
+```bash
 sed 's/dashboard/dashboard_v2/g' origin_dump.sql > edited_dump.sql
 ```
 
-sed 는 스트림 에디터로, 한번에 파일을 로드하는게 아니라 스트리밍 형식으로 수정할수 있다.
-자세한 사용법은 아래를 참고할수 있다.
+`sed`는 스트림 에디터다.
+파일을 통째로 로드하지 않고 스트리밍 방식으로 수정한다.
+자세한 사용법은 아래를 참고.
+
 - https://www.ibm.com/docs/ko/aix/7.2?topic=s-sed-command
 
+텍스트 치환은 되도록 구체적으로 작성하는 게 좋다.
+`dashboard`처럼 짧은 단어는 사이드 이펙트가 크다.
+`public.dashboard`나 `create table dashboard`처럼 컨텍스트를 포함해 치환하자.
 
-알고 있겠지만 텍스트 치환은 되도록 구체적으로 작성하는게 좋다.
-단순히 dashboard 라는 단어는 사이드이펙트가 크기때문에 public.dashboard 라던지 create table dashboard 라던지, 컨텍스트를 포함한 구문으로 구체적으로 작성하자.
-; 을 이용하면 여러 치환을 함께 할수 있다.
-```
+`;`로 여러 치환을 묶을 수 있다.
+
+```bash
 sed 's/public.dashboard/public.dashboard_v2/g; s/create table dashboard/create table dashboard_v2/g' origin_dump.sql > edited_dump.sql
 ```
 
-잘 수정됐는지 확인을 위해서는 head 명령어를 사용할수 있다.
-```
+잘 수정됐는지 확인할 땐 `head`를 쓰면 된다.
+
+```bash
 head -n 300 temp.sql
 ```
 
+### psql로 복구
 
-### psql 을 이용한 복구
+텍스트 포맷 덤프는 `pg_restore`가 안 된다.
+`psql`로 복구해야 한다.
 
-텍스트 포맷의 덤프파일은 pg_restore가 안된다.
-psql 을 이용해야한다.
-
+```bash
+psql -h {your.host} -U {user_name} -d {db_name} -f edited_dump.sql
 ```
-psql -h {your.host} -U {user name} -d {db name} -f edited_dump.sql
-```
-
-
 
 ## custom 포맷 덤프와 pg_restore
 
-덤프는 -F 옵션이 custom 인것 말고 차이는 없다.
+덤프는 `-F custom`인 것 말고는 동일하다.
 
-```
+```bash
 /opt/homebrew/opt/libpq/bin/pg_dump \
 -h localhost \
 -U {user_name} \
--d {db_name \
+-d {db_name} \
 -t public.{table_name} \
 -F custom \
 -f /Users/bonjugi/test-dump1.sql
 ```
 
-복구는 psql 이 아니라 pg_restore 으로 복구한다. 
-plain 보다는 좀더 덤프나 복구가 빠르다. 
-다만 덤프파일이 바이너리 이다보니 직접 테이블명을 수정할순 없다.
-sed 로 된다고 하는데 해보진 못함.
-
-
-
+복구는 `psql`이 아니라 `pg_restore`로 한다.
+plain보다 덤프/복구가 빠르다.
+다만 덤프 파일이 바이너리라 테이블명을 직접 수정하기는 어렵다.
+`sed`로 된다고는 하는데 해보진 못했다.

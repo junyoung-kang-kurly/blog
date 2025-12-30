@@ -12,6 +12,8 @@ interface PostPageProps {
   }>;
 }
 
+const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
+
 function getPostBySlug(slug: string) {
   return posts.find((post) => post.slugAsParams === slug);
 }
@@ -69,12 +71,13 @@ export default async function PostPage({ params }: PostPageProps) {
           {post.tags.length > 0 && (
             <div className="flex items-center gap-2">
               {post.tags.map((tag) => (
-                <span
+                <Link
                   key={tag}
-                  className="bg-muted px-2 py-0.5 rounded text-xs"
+                  href={tagHref(tag)}
+                  className="bg-muted px-2 py-0.5 rounded text-xs hover:opacity-80"
                 >
                   {tag}
-                </span>
+                </Link>
               ))}
             </div>
           )}

@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { posts } from "#site/content";
-import { formatDate, sortPostsByDate } from "@/lib/utils";
-import { Calendar } from "lucide-react";
+import { getTagCounts, sortPostsByDate } from "@/lib/utils";
+import { PostSearch } from "@/components/post-search";
 
 export default function Home() {
   const publishedPosts = sortPostsByDate(
     posts.filter((post) => post.published)
   );
+  const tagCounts = getTagCounts(publishedPosts);
+  const postsForSearch = publishedPosts.map((post) => ({
+    slugAsParams: post.slugAsParams,
+    title: post.title,
+    description: post.description,
+    date: post.date,
+    tags: post.tags,
+  }));
+  const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
 
   return (
     <div>
@@ -17,47 +26,28 @@ export default function Home() {
         </p>
       </section>
 
-      <section>
-        <h2 className="text-xl font-semibold mb-6">Recent Posts</h2>
-        {publishedPosts.length === 0 ? (
-          <p className="text-muted-foreground">아직 작성된 글이 없습니다.</p>
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold mb-4">Tags</h2>
+        {tagCounts.length === 0 ? (
+          <p className="text-muted-foreground">등록된 태그가 없습니다.</p>
         ) : (
-          <ul className="space-y-8">
-            {publishedPosts.map((post) => (
-              <li key={post.slug}>
-                <article className="group">
-                  <Link href={`/posts/${post.slugAsParams}`}>
-                    <h3 className="text-lg font-medium group-hover:underline mb-2">
-                      {post.title}
-                    </h3>
-                  </Link>
-                  <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
-                    {post.description}
-                  </p>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      {formatDate(post.date)}
-                    </span>
-                    {post.tags.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        {post.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="bg-muted px-2 py-0.5 rounded text-xs"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </article>
+          <ul className="flex flex-wrap gap-2">
+            {tagCounts.map(({ tag, count }) => (
+              <li key={tag}>
+                <Link
+                  href={tagHref(tag)}
+                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:opacity-80"
+                >
+                  <span>{tag}</span>
+                  <span className="text-muted-foreground">({count})</span>
+                </Link>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      <PostSearch posts={postsForSearch} />
     </div>
   );
 }

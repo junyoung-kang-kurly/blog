@@ -1,53 +1,48 @@
 ---
 title: "mongodb vs postgresql 벤치마크"
-description: "아래 페이지를 발견했다.https&#x3A;//www.enterprisedb.com/performance-benchmark-postgresql-vs-mongodb세심한 테스트 조건과, 여러 케이스들을 벤치마크했다.결론부터 말하자면 대체로 pg가 우세하게 나왔다.옛날에 "
+description: "PostgreSQL과 MongoDB 벤치마크 결과를 간단히 요약."
 date: "2024-05-05"
 published: true
-tags: []
+tags: ["postgresql", "mongodb", "benchmark", "database"]
 ---
 
 아래 페이지를 발견했다.
+
 - https://www.enterprisedb.com/performance-benchmark-postgresql-vs-mongodb
 
-세심한 테스트 조건과, 여러 케이스들을 벤치마크했다.
-결론부터 말하자면 대체로 pg가 우세하게 나왔다.
-옛날에 단순 insert 속도를 로컬에서 벤치마크 한적 있었다.
-당시에도 postgresql 이 mongodb 보다 압도적으로 빨랐기 때문에 어느정도 예상은 한 결과였다.
+테스트 조건과 케이스를 꽤 세심하게 정리해 둔 자료다.
+결론부터 말하자면 대체로 PostgreSQL이 우세했다.
+예전에 로컬에서 단순 insert 속도를 벤치마크했을 때도
+PostgreSQL이 MongoDB보다 압도적으로 빨랐던 기억이 있다.
+그래서 어느 정도 예상한 결과였다.
 
-pg에 우세한 방식으로 진행됐을까 의심이 될법도 하지만, 본문에는 가급적 프로덕션 환경과 유사하게 셋팅하여 진행했다고 한다. 
-테스트 조건들도 매우 세세하게 적어줬기 때문에 신뢰가 간다.
+PostgreSQL에 유리한 방식으로 진행됐을까 의심도 들 수 있지만,
+본문에는 가급적 프로덕션 환경과 유사하게 세팅했다고 적혀 있다.
+테스트 조건도 자세히 적혀 있어 신뢰가 갔다.
 
-본 글은 결과 요약전달이 목적이고, 자세한 내용은 위 페이지의 pdf를 참고하길 바란다.
+이 글은 결과 요약 전달이 목적이고, 자세한 내용은 원문 PDF를 참고하면 된다.
 
+## OLTP 벤치마크
 
-### OLTP 벤치마크
-
-아래는 OLTP 벤치마크 결과이다.
-놀랍게도 OLTP 에서 PG 가 압도적으로 빠르다.
+OLTP에서 PostgreSQL이 압도적으로 빠르다.
 
 ![](/images/posts/0d70f0f0-160d-40c4-ad2d-a3e0468d22ef-image.png)
 
+## OLAP 벤치마크
 
-### OLAP 벤치마크
+OLAP에서도 PostgreSQL이 대체로 우세했다.
+Query A만 22% 느렸고, 나머지는 PostgreSQL이 우세했다.
 
-아래는 OLAP 벤치마크 결과이다. 
-PG 가 좀더 우세할거라고 예상하긴 했었다. QueryA 가 22% 느렸던걸 제외하면 모두 PG가 우세했다.
 ![](/images/posts/839cf2d4-b42c-452d-9037-f5be13472961-image.png)
 
+Query A가 느린 이유가 궁금해서 쿼리를 첨부한다.
+플랜을 봐야 정확한 이유를 알 수 있을 것 같다.
 
-Query A 가 느린 이유가 궁금해서 쿼리 첨부.
-근데 플랜이라도 봐야 왜느렸는지 알수있을것같다.
 ![](/images/posts/7310cfeb-d953-4154-957a-f19aac2c0491-image.png)
 
+## 소감
 
-### 소감
-
-
-결론은, 성능을 위해 monbodb를 채택하진 않게 될것같다.
-게다가 RDB를 쓰고있는데, documentdb나 mongodb atlas를 추가도입 하는 경우라면 비용적으로도 이점이 없어보인다.
-mongodb의 뚜렷한 장점이라면 스키마리스정도가 되지 않을까?
-
-
-
-
-
+결론은, 성능 때문에 MongoDB를 채택할 일은 적을 것 같다.
+이미 RDB를 쓰는 상황에서 DocumentDB나 MongoDB Atlas를 추가 도입하면
+비용적으로도 이점이 없어 보인다.
+MongoDB의 뚜렷한 장점이라면 스키마리스 정도가 아닐까.
