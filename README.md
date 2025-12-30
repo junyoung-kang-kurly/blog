@@ -79,13 +79,43 @@ tags: ["태그1", "태그2"]
 
 ## 배포
 
-Vercel에 배포하는 것을 권장합니다:
+Vercel에 배포하는 것을 권장합니다.
+
+### 방법 1: Vercel CLI 사용
+
+```bash
+# Vercel CLI 설치 (전역)
+npm i -g vercel
+
+# 로그인
+vercel login
+
+# 배포 (프로덕션)
+vercel --prod
+```
+
+### 방법 2: GitHub 연동 (권장)
+
+1. [Vercel](https://vercel.com)에 로그인
+2. "Add New Project" 클릭
+3. GitHub 저장소 import
+4. 프레임워크 프리셋: Next.js (자동 감지)
+5. "Deploy" 클릭
+
+GitHub 연동 시 `main` 브랜치에 푸시할 때마다 자동 배포됩니다.
+
+### 환경 설정
+
+별도의 환경 변수 설정은 필요하지 않습니다. 빌드 명령어는 `pnpm build`가 자동으로 사용됩니다.
+
+### 빌드 확인
+
+로컬에서 프로덕션 빌드를 테스트하려면:
 
 ```bash
 pnpm build
+pnpm start
 ```
-
-빌드 성공 후 Vercel에 연결하여 자동 배포를 설정할 수 있습니다.
 
 ## 라이선스
 
