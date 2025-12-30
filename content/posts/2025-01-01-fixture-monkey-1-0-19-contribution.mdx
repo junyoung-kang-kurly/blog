@@ -1,0 +1,40 @@
+---
+title: "Fixture Monkey 1.0.19 오픈소스 기여: Byte 범위 오류 수정"
+description: "Byte 범위 오류 수정 경험을 바탕으로 경계값 테스트를 어떻게 구성했는지 정리했다."
+date: "2025-01-01"
+published: true
+tags: ["java", "testing", "fixture-monkey", "opensource"]
+---
+
+우리는 픽스쳐 생성시 FixtureMonkey를 사용중이다.
+사내에서 사용중인 암호화 모듈에 Byte 암호화 추가를 해야 했고, Byte 픽스쳐 생성시 간헐적으로 "out of byte range"가 터졌다.
+
+> 막간을 이용해 [사내 암호화모듈 개발기 링크](https://helloworld.kurly.com/blog/delivery-encryption-module/) 자랑
+
+Byte는 -128~127 범위인데 그 밖의 값이 나오는 문제였다.
+예전 글에서 SimpleValueJqwikPlugin을 소개했는데, 해당 라이브러리 내에서 발생한 이슈였다.
+[관련 글](/posts/fixture-monkey-1-0-17)
+
+## PR 히스토리 요약
+PR 절차는 대략 요정도로 진행 되었다. (상당히 빠르다)
+
+- 2024-06-11: PR 생성 및 1차 수정 반영
+- 2024-06-12: 리뷰 피드백 반영 (타입 체크 방식, 옵션 호환성, 테스트 추가)
+- 2024-06-13: `? extends Byte` 대응 및 정적 분석(체크스타일) 보정
+- 2024-06-14: 승인 및 머지, 1.0.19 마일스톤 포함
+
+리뷰어분이 타입 처리와 테스트 포인트를 친절하게 짚어주셔서 방향이 빨리 잡혔다.
+테스트를 픽스처몽키로 테스트 하는 과정도 흥미로웠다. (Junit 개발자가 이런 기분이었겠지)
+
+## PR 관련 링크 참고 :
+
+- PR: https://github.com/naver/fixture-monkey/pull/988
+- 릴리즈 노트: https://github.com/naver/fixture-monkey/releases/tag/1.0.19
+
+## 마무리
+
+애용해던 오픈소스 Fixture Monkey 의 컨트리뷰터가 되었고,
+경계테스트의 중요성을 느꼈으며,
+네이버 오픈소스 메인테이너의 빠르고 친절하고 배려깊은 리뷰를 경험했다.
+최종엔 사내 암호화 모듈 개선하는데도 기여했다.
+전반적으로 유익한 경험이었다.
