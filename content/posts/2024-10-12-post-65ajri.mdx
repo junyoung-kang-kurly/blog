@@ -14,7 +14,14 @@ tags: ["java", "generics", "reflection", "jvm"]
 
 - https://lifework-archive-reservoir.tistory.com/313
 
-> 이외에도 소거로 인해 발생하는 문제가 더 있었던 것 같은데 다음에 추가해 보자.
+## 소거 때문에 생기는 대표적인 제약
+
+소거 때문에 아래 같은 제약이 생긴다.
+
+- `instanceof List<String>` 같은 체크는 불가능하다.
+- `new T[]`는 만들 수 없다. (generic array creation)
+- `static T field`처럼 static에서 타입 파라미터를 쓸 수 없다.
+- `catch (T t)` 같은 예외 캐치는 허용되지 않는다.
 
 ## 리플렉션은 제네릭 정보를 알 수 있다
 
