@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { posts } from "#site/content";
 import { formatDate, getTagCounts, sortPostsByDate } from "@/lib/utils";
+import { siteConfig } from "@/lib/site-config";
 import { Calendar, ArrowLeft } from "lucide-react";
 
 interface TagPageProps {
@@ -26,10 +27,28 @@ export async function generateMetadata({
   params,
 }: TagPageProps): Promise<Metadata> {
   const { tag } = await params;
+  const tagUrl = `${siteConfig.url}/tags/${encodeURIComponent(tag)}`;
+  const description = `${tag} 태그가 포함된 글 목록입니다.`;
 
   return {
     title: `Tag: ${tag}`,
-    description: `${tag} 태그가 포함된 글 목록입니다.`,
+    description,
+    openGraph: {
+      type: "website",
+      locale: "ko_KR",
+      url: tagUrl,
+      title: `Tag: ${tag}`,
+      description,
+      siteName: siteConfig.name,
+    },
+    twitter: {
+      card: "summary",
+      title: `Tag: ${tag}`,
+      description,
+    },
+    alternates: {
+      canonical: tagUrl,
+    },
   };
 }
 

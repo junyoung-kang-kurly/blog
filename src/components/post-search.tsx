@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Calendar, Search } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatSeriesName } from "@/lib/utils";
 
 interface PostSummary {
   slugAsParams: string;
@@ -11,6 +11,8 @@ interface PostSummary {
   description: string;
   date: string;
   tags: string[];
+  series?: string;
+  seriesOrder?: number;
 }
 
 interface PostSearchProps {
@@ -76,11 +78,17 @@ export function PostSearch({ posts }: PostSearchProps) {
                 <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
                   {post.description}
                 </p>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     {formatDate(post.date)}
                   </span>
+                  {post.series && (
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">
+                      {formatSeriesName(post.series)}
+                      {post.seriesOrder && ` #${post.seriesOrder}`}
+                    </span>
+                  )}
                   {post.tags.length > 0 && (
                     <div className="flex items-center gap-2">
                       {post.tags.map((tag) => (

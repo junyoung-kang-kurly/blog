@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { posts } from "#site/content";
 import { MDXContent } from "@/components/mdx-content";
-import { formatDate } from "@/lib/utils";
+import { SeriesNavigation } from "@/components/series-navigation";
+import { formatDate, getSeriesInfo } from "@/lib/utils";
+import { siteConfig } from "@/lib/site-config";
 import { Calendar, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -36,9 +38,31 @@ export async function generateMetadata({
     };
   }
 
+  const postUrl = `${siteConfig.url}/posts/${post.slugAsParams}`;
+
   return {
     title: post.title,
     description: post.description,
+    authors: [{ name: siteConfig.author.name }],
+    openGraph: {
+      type: "article",
+      locale: "ko_KR",
+      url: postUrl,
+      title: post.title,
+      description: post.description,
+      siteName: siteConfig.name,
+      publishedTime: post.date,
+      authors: [siteConfig.author.name],
+      tags: post.tags,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description: post.description,
+    },
+    alternates: {
+      canonical: postUrl,
+    },
   };
 }
 
@@ -50,8 +74,49 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound();
   }
 
+  // 시리즈 정보 조회
+  const seriesInfo = getSeriesInfo(
+    slug,
+    posts.map((p) => ({
+      slugAsParams: p.slugAsParams,
+      title: p.title,
+      series: p.series,
+      seriesOrder: p.seriesOrder,
+    }))
+  );
+
+  // JSON-LD 구조화 데이터
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
+    dateModified: post.date,
+    author: {
+      "@type": "Person",
+      name: siteConfig.author.name,
+      url: siteConfig.author.url,
+    },
+    publisher: {
+      "@type": "Person",
+      name: siteConfig.author.name,
+      url: siteConfig.author.url,
+    },
+    url: `${siteConfig.url}/posts/${post.slugAsParams}`,
+    keywords: post.tags.join(", "),
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `${siteConfig.url}/posts/${post.slugAsParams}`,
+    },
+  };
+
   return (
     <article>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Link
         href="/"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8"
@@ -83,6 +148,9 @@ export default async function PostPage({ params }: PostPageProps) {
           )}
         </div>
       </header>
+
+      {/* 시리즈 네비게이션 */}
+      {seriesInfo && <SeriesNavigation seriesInfo={seriesInfo} />}
 
       <hr className="mb-8" />
 

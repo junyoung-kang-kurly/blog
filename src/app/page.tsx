@@ -14,6 +14,8 @@ export default function Home() {
     description: post.description,
     date: post.date,
     tags: post.tags,
+    series: post.series,
+    seriesOrder: post.seriesOrder,
   }));
   const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
 
