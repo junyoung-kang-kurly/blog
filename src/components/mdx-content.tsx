@@ -1,7 +1,7 @@
 "use client";
 
 import { createElement, isValidElement, useMemo } from "react";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from "react";
 import * as runtime from "react/jsx-runtime";
 
 const getMDXComponent = (code: string) => {
@@ -29,7 +29,8 @@ const getNodeText = (node: ReactNode): string => {
   }
 
   if (isValidElement(node)) {
-    return getNodeText(node.props.children);
+    const element = node as ReactElement<{ children?: ReactNode }>;
+    return getNodeText(element.props.children);
   }
 
   return "";
