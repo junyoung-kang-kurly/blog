@@ -1,0 +1,387 @@
+---
+title: "Spring @EventListener 함정과 해결책"
+description: "트랜잭션 타이밍, 예외 전파, 실행 순서 등 Spring 이벤트 리스너에서 자주 발생하는 문제들과 해결 방법을 정리했다."
+date: "2026-02-01"
+published: true
+tags: ["java", "spring", "event-driven", "transaction"]
+---
+
+## 들어가며
+
+Spring의 `@EventListener`는 간단해 보이지만, 실무에서 여러 함정이 있다.
+트랜잭션 타이밍, 예외 전파, 실행 순서 등 자주 발생하는 문제들을 정리했다.
+
+> **시리즈 안내**
+> - [Part 1: 이벤트 네이밍과 리스너 컨벤션](/posts/spring-event-listener-conventions)
+> - Part 2: Spring @EventListener 함정과 해결책 (현재 글)
+> - [Part 3: DDD 이벤트 설계 안티패턴](/posts/ddd-event-anti-patterns)
+
+
+## 트랜잭션 타이밍 함정
+
+### 문제: 커밋 전 실행
+
+`@Transactional` 메소드 내에서 이벤트 발행 시, `@EventListener`는 트랜잭션 커밋 **전에** 실행된다.
+
+```java
+// ❌ 위험: 트랜잭션 커밋 전에 이벤트 처리됨
+@Service
+public class OrderService {
+    @Transactional
+    public void createOrder(Order order) {
+        orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderCreated(order.getId()));
+        // 이벤트가 지금 발행됨 — 하지만 트랜잭션은 아직 커밋되지 않음!
+    }
+}
+
+@Component
+public class EmailListener {
+    @EventListener
+    public void sendEmail(OrderCreated event) {
+        // 트랜잭션 커밋 전에 실행됨
+        // 주문 조회 시 데이터가 없을 수 있음!
+        Order order = orderRepository.findById(event.getOrderId()); // null일 수 있음!
+    }
+}
+```
+
+### 해결책: @TransactionalEventListener
+
+```java
+@Component
+public class EmailListener {
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void sendEmail(OrderCreated event) {
+        // 트랜잭션 커밋 후에만 실행됨
+        Order order = orderRepository.findById(event.getOrderId()); // 반드시 존재
+    }
+}
+```
+
+`TransactionPhase` 옵션:
+- `AFTER_COMMIT` (기본값): 커밋 성공 후 실행
+- `AFTER_ROLLBACK`: 롤백 후 실행
+- `AFTER_COMPLETION`: 커밋/롤백 상관없이 완료 후 실행
+- `BEFORE_COMMIT`: 커밋 직전 실행
+
+
+## 폴백 실행 누락
+
+### 문제: 트랜잭션 없으면 무시됨
+
+`@TransactionalEventListener`는 기본적으로 트랜잭션이 없으면 **조용히 무시된다**.
+
+```java
+// ❌ 트랜잭션 없이 호출하면 실행되지 않음 (에러도 없음!)
+@TransactionalEventListener
+public void handleEvent(OrderEvent event) {
+    // 트랜잭션 밖에서 호출하면 절대 실행 안됨
+}
+```
+
+스케줄러나 메시지 리스너처럼 트랜잭션 없이 이벤트를 발행하는 경우 문제가 된다.
+
+### 해결책: fallbackExecution = true
+
+```java
+@TransactionalEventListener(fallbackExecution = true)
+public void handleEvent(OrderEvent event) {
+    // 트랜잭션 밖에서도 실행됨
+}
+```
+
+
+## 동기 이벤트의 예외 전파
+
+### 문제: 리스너 예외가 발행자 트랜잭션을 롤백
+
+`@EventListener`는 기본적으로 **동기 실행**되어 예외가 발행자에게 전파된다.
+
+```java
+@Service
+public class OrderService {
+    @Transactional
+    public void createOrder(Order order) {
+        orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderCreated(order.getId()));
+        // 리스너에서 예외 발생 시 여기까지 롤백됨!
+    }
+}
+
+@Component
+public class NotificationListener {
+    @EventListener
+    public void sendEmail(OrderCreated event) {
+        emailService.send(...); // 외부 서비스 호출 실패 시
+        // OrderService의 트랜잭션도 롤백됨!
+    }
+}
+```
+
+이메일 발송 실패 때문에 주문 생성이 롤백되는 건 대부분 원하는 동작이 아니다.
+
+### 해결책 1: 비동기 처리 (권장)
+
+```java
+@EventListener
+@Async
+public void sendEmail(OrderCreated event) {
+    emailService.send(...);
+    // 예외가 발생해도 발행자에게 전파되지 않음
+}
+```
+
+> **주의: `@Async`는 새 스레드에서 실행된다**
+>
+> 트랜잭션 컨텍스트가 전파되지 않으므로, 리스너 내부에서 DB 작업이 필요하면 새 트랜잭션이 시작된다.
+> ```java
+> @EventListener
+> @Async
+> public void handle(OrderCreated event) {
+>     // 여기서 호출하는 @Transactional 메서드는 새 트랜잭션
+>     orderService.updateStatus(event.getOrderId());
+> }
+> ```
+
+`@Async` 사용 시 `@EnableAsync` 설정 필요:
+
+```java
+@Configuration
+@EnableAsync
+public class AsyncConfig {
+    @Bean
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("event-");
+        executor.initialize();
+        return executor;
+    }
+}
+```
+
+### 해결책 2: 예외 격리
+
+```java
+@EventListener
+public void sendEmail(OrderCreated event) {
+    try {
+        emailService.send(...);
+    } catch (Exception e) {
+        log.error("Failed to send email for order: {}", event.getOrderId(), e);
+        // 실패를 기록하고 나중에 재시도 (Outbox 패턴 등)
+    }
+}
+```
+
+### 해결책 3: 트랜잭션 커밋 후 실행
+
+```java
+@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+public void sendEmail(OrderCreated event) {
+    // 이미 커밋된 후라 예외가 트랜잭션 롤백을 유발하지 않음
+    // 단, 예외는 여전히 caller에게 전파됨 (에러 응답, 로깅 등 영향)
+    // 동기 실행이므로 응답 시간에도 영향
+}
+```
+
+예외 전파를 완전히 차단하려면 `@Async`와 함께 사용하거나 try-catch로 감싸야 한다.
+
+
+## 이벤트 순서 의존
+
+### 문제: 실행 순서가 보장되지 않음
+
+리스너가 특정 순서로 실행된다고 가정하면 문제가 생긴다.
+
+```java
+// ❌ 위험: 실행 순서가 보장되지 않음!
+@EventListener
+@Order(1)
+public void saveToDatabase(OrderCreated event) {
+    orderRepository.save(event.toOrder());
+}
+
+@EventListener
+@Order(2)  // @Order가 있어도 다른 Bean의 순서는 보장 안됨
+public void sendNotification(OrderCreated event) {
+    // DB에 저장된 후라고 가정하면 위험!
+    Order order = orderRepository.findById(event.orderId()); // null일 수 있음!
+}
+```
+
+`@Order`는 **같은 Bean 내** 또는 **같은 ApplicationContext 레벨**에서만 의미가 있다.
+다른 Bean 간의 순서는 Spring의 Bean 로딩 순서에 따라 달라질 수 있다.
+
+### 해결책 1: 단일 리스너에서 순차 처리
+
+```java
+@EventListener
+public void handleOrderCreated(OrderCreated event) {
+    Order order = orderRepository.save(event.toOrder());
+    notificationService.send(order);
+}
+```
+
+### 해결책 2: 이벤트 체이닝
+
+```java
+@EventListener
+public void saveOrder(OrderCreated event) {
+    Order order = orderRepository.save(event.toOrder());
+    eventPublisher.publish(new OrderPersisted(order.getId()));
+}
+
+@EventListener
+public void sendNotification(OrderPersisted event) {
+    // 이제 순서가 보장됨
+    Order order = orderRepository.findById(event.orderId());
+    notificationService.send(order);
+}
+```
+
+### 해결책 3: SmartApplicationListener
+
+순서가 정말 중요하면 `SmartApplicationListener`를 구현한다:
+
+```java
+@Component
+public class OrderedEmailListener implements SmartApplicationListener {
+    
+    @Override
+    public int getOrder() {
+        return 100; // 낮을수록 먼저 실행
+    }
+    
+    @Override
+    public boolean supportsEventType(Class<? extends ApplicationEvent> eventType) {
+        return OrderCreated.class.isAssignableFrom(eventType);
+    }
+    
+    @Override
+    public void onApplicationEvent(ApplicationEvent event) {
+        // ...
+    }
+}
+```
+
+
+## 이벤트 루프 (무한 발행)
+
+### 문제: A → B → A 순환
+
+이벤트 핸들러가 다시 원래 이벤트를 발행하면 무한 루프가 발생한다.
+
+```java
+// ❌ 무한 루프!
+@EventListener
+public void onOrderCreated(OrderCreated event) {
+    inventoryService.reserve(event.orderId());
+    eventPublisher.publish(new InventoryReserved(event.orderId()));
+}
+
+@EventListener
+public void onInventoryReserved(InventoryReserved event) {
+    // 비즈니스 로직 실수로 OrderCreated 다시 발행
+    eventPublisher.publish(new OrderCreated(event.orderId()));
+}
+```
+
+### 해결책 1: 이벤트 흐름 다이어그램
+
+발행/구독 관계를 시각화해서 순환을 미리 발견한다.
+
+```
+OrderCreated → InventoryReserved → PaymentRequested → ...
+                    ↓
+              (절대 OrderCreated로 돌아가지 않음)
+```
+
+### 해결책 2: 순환 탐지 로직
+
+```java
+public class EventMetadata {
+    private final String correlationId;
+    private final Set<String> processedBy = new HashSet<>();
+    
+    public boolean alreadyProcessedBy(String handler) {
+        return !processedBy.add(handler);
+    }
+}
+
+@EventListener
+public void onOrderCreated(OrderCreatedWithMetadata event) {
+    if (event.metadata().alreadyProcessedBy("OrderCreatedHandler")) {
+        log.warn("Circular event detected: {}", event);
+        return;
+    }
+    // ...
+}
+```
+
+### 해결책 3: Saga 패턴
+
+복잡한 이벤트 흐름은 Saga로 명시적인 상태 머신을 만든다:
+
+```java
+public class OrderSaga {
+    private OrderSagaState state = OrderSagaState.CREATED;
+    
+    public void handle(OrderCreated event) {
+        if (state != OrderSagaState.CREATED) return;
+        // ...
+        state = OrderSagaState.INVENTORY_RESERVED;
+    }
+    
+    public void handle(PaymentCompleted event) {
+        if (state != OrderSagaState.INVENTORY_RESERVED) return;
+        // ...
+        state = OrderSagaState.COMPLETED;
+    }
+}
+```
+
+
+## 결론: 안전한 이벤트 리스너 체크리스트
+
+| 항목 | 기본 동작 | 권장 설정 |
+|------|----------|----------|
+| 트랜잭션 타이밍 | 커밋 전 실행 | `@TransactionalEventListener(phase = AFTER_COMMIT)` |
+| 트랜잭션 없을 때 | 무시됨 | `fallbackExecution = true` |
+| 예외 전파 | 발행자에게 전파 | `@Async` 또는 try-catch |
+| 실행 순서 | 보장 안됨 | 이벤트 체이닝 또는 단일 리스너 |
+| 순환 발행 | 무한 루프 | 이벤트 흐름 다이어그램, Saga |
+
+대부분의 경우 이 패턴을 따르면 안전하다:
+
+```java
+@Component
+public class SafeEventListener {
+    
+    @TransactionalEventListener(
+        phase = TransactionPhase.AFTER_COMMIT,
+        fallbackExecution = true
+    )
+    @Async
+    public void handle(SomeEvent event) {
+        try {
+            // 비즈니스 로직
+        } catch (Exception e) {
+            log.error("Event handling failed", e);
+            // 재시도 큐에 추가 등
+        }
+    }
+}
+```
+
+
+## 참고 자료
+
+| 문서 | 내용 |
+|------|------|
+| [Spring Application Events](https://docs.spring.io/spring-framework/reference/core/beans/context-introduction.html#context-functionality-events) | 공식 문서 |
+| [Transaction-bound Events](https://docs.spring.io/spring-framework/reference/data-access/transaction/event.html) | @TransactionalEventListener 상세 |
+| [Spring @Async](https://docs.spring.io/spring-framework/reference/integration/scheduling.html#scheduling-annotation-support-async) | 비동기 처리 |

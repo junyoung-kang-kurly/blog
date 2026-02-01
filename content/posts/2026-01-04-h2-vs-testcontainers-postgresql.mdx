@@ -1,0 +1,224 @@
+---
+title: "H2 vs Testcontainers + PostgreSQL: 테스트 DB 선택 가이드"
+description: "테스트 속도는 35% 차이지만, 프로덕션과 100% 동일한 환경을 보장하는 Testcontainers를 추천하는 이유."
+date: "2026-01-04"
+published: true
+tags: ["java", "testing", "testcontainers", "postgresql", "h2", "jooq"]
+---
+
+## 들어가며
+
+테스트용 DB로 뭘 쓸지는 꽤 오래된 논쟁이다.
+H2가 빠르다는 건 알지만, 프로덕션과 다른 DB를 쓰는 게 항상 마음에 걸렸다.
+그래서 직접 H2와 Testcontainers + PostgreSQL의 성능을 비교해봤다.
+
+결론부터 말하자면, 4.92초 vs 6.66초 차이였다.
+PostgreSQL의 모든 기능을 100% 활용할 수 있다는 점을 고려하면, Testcontainers를 쓰는 게 낫다고 본다.
+
+
+## 성능 비교 결과
+
+jOOQ 기반의 다양한 쿼리(Bulk INSERT, GROUP BY, Window Functions, JOIN 등)를 테스트했다.
+3회 반복 측정한 평균값이다.
+
+| 항목 | H2 | PostgreSQL (Testcontainers) | 차이 |
+|------|----|-----------------------------|------|
+| 전체 테스트 시간 | 4.92초 | 6.66초 | +35% |
+| 컨테이너 시작 | 0초 | 0.81초 | - |
+| Spring Context 초기화 | 0.45초 | 0.87초 | +0.42초 |
+
+### 개별 쿼리 시간 비교
+
+| 쿼리 종류 | H2 | PostgreSQL | 차이 |
+|-----------|-----|------------|------|
+| Bulk INSERT (1000건) | 109ms | 144ms | +32% |
+| GROUP BY (1000건) | 112ms | 113ms | +1% |
+| Window Functions (평균) | 18ms | 25ms | +39% |
+| JOIN 쿼리 (평균) | 7ms | 20ms | +186% |
+
+개별 쿼리 시간 차이는 미미하다.
+JOIN 쿼리가 상대적으로 차이가 크지만, 절대값으로 보면 13ms 정도다.
+주요 차이는 **컨테이너 시작 + Spring Context 초기화**에서 발생한다.
+
+## 시간 구성 분석
+
+### H2 (4.92초)
+
+- Gradle 오버헤드: ~2.5초
+- Spring Context 초기화: ~0.45초
+- H2 인메모리 DB 생성: 즉시
+- `schema.sql` 실행 (Flyway 아님)
+- 테스트 실행: ~2.0초
+
+### PostgreSQL + Testcontainers (6.66초)
+
+- Gradle 오버헤드: ~2.5초
+- **Ryuk 컨테이너 시작: ~0.15초**
+- **PostgreSQL 컨테이너 시작: ~0.65초**
+- Spring Context + Flyway 마이그레이션: ~0.87초
+- HikariCP 연결: ~0.3초
+- 테스트 실행: ~2.2초
+
+Ryuk은 테스트 종료 후 컨테이너를 자동 정리해주는 가비지 컬렉터 역할을 한다.
+이미지가 캐시된 상태 기준이고, 첫 실행 시에는 이미지 다운로드로 수십 초가 추가된다.
+
+## H2의 문제점
+
+속도가 빠르다는 장점이 있지만, 치명적인 단점들이 있다.
+
+### 1. 이중 스키마 관리
+
+Flyway 마이그레이션 파일과 별도로 `schema.sql`을 유지해야 한다.
+
+```plaintext
+// 실제 프로덕션 (Flyway)
+src/main/resources/db/migration/V241207.1__init.sql
+
+// H2 테스트용 (별도 관리)
+src/test/resources/db/h2/schema.sql
+```
+
+컬럼 추가/수정 시 두 파일을 모두 수정해야 하며, 누락 시 **"테스트는 통과하지만 프로덕션에서 실패"**하는 버그가 발생한다.
+이건 정말 잡기 어려운 버그다.
+
+### 2. PostgreSQL 전용 기능 테스트 불가
+
+H2의 `MODE=PostgreSQL`은 기본 문법만 호환된다.
+실제로 내 프로젝트에서 변환 시 수정한 내용들이다:
+
+#### DDL / 스키마 관련
+
+| PostgreSQL 기능 | H2 대체 | 문제점 |
+|-----------------|---------|--------|
+| `JSONB` | `JSON` (텍스트) | JSONB 연산자 (`@>`, `->>`, `?`) 테스트 불가 |
+| PostGIS `GEOMETRY` | 미지원 | `ST_Distance`, `ST_Within` 등 공간 쿼리 불가 |
+| `COMMENT ON` | 미지원 | 모든 COMMENT 문 제거 필요 |
+| `CREATE EXTENSION` | 미지원 | pg_trgm, postgis, uuid-ossp 등 확장 불가 |
+| `USING GIST` 인덱스 | 미지원 | 공간 인덱스, GIN 인덱스 테스트 불가 |
+
+#### 함수 / 쿼리 관련
+
+| PostgreSQL 기능 | H2 상태 |
+|-----------------|---------|
+| `array_agg()` | 부분 지원 (ORDER BY 절 미지원) |
+| `unnest()`, `string_to_array()` | 미지원 |
+| `generate_series()` | 미지원 |
+| `string_agg()` | `GROUP_CONCAT`으로 대체 필요 |
+| `DISTINCT ON` | 미지원 |
+| `LATERAL` 조인 | 미지원 |
+| `ON CONFLICT` (UPSERT) | `MERGE` 문으로 대체 필요 |
+| `jsonb_agg()`, `jsonb_build_object()` | 미지원 |
+| JSONB 연산자 (`@>`, `<@`, `?`, `?|`) | 미지원 |
+
+### 3. MODE=PostgreSQL의 한계
+
+기본 문법만 호환되고, 실제 PostgreSQL과 동작이 다른 경우가 있다:
+
+- 대소문자 처리 차이 (PostgreSQL은 기본 소문자, H2는 기본 대문자)
+- NULL 정렬 순서 차이
+- 타입 캐스팅 동작 차이
+- 트랜잭션 격리 수준 동작 차이
+
+### 4. 실제 변환 사례
+
+내 프로젝트에서 발생한 변경:
+
+| 변경 항목 | PostgreSQL | H2 | 영향 |
+|-----------|------------|-----|------|
+| `payload` 컬럼 | `JSONB` | `JSON` | JSONB 쿼리 테스트 불가 |
+| `COMMENT ON` | 60+ 구문 | 전체 삭제 | 기능 영향 없음 |
+| `location` 컬럼 | `GEOMETRY` | 미포함 | 공간 쿼리 테스트 불가 |
+| 공간 인덱스 | `USING GIST` | 미포함 | 인덱스 동작 테스트 불가 |
+
+**결국 "테스트는 통과했는데 프로덕션에서 터진다"는 최악의 시나리오가 발생할 수 있다.**
+
+## Testcontainers 성능 최적화
+
+Testcontainers가 느리다고 느껴진다면 최적화 방법이 있다.
+
+### 1. Reusable Containers (로컬 개발 추천)
+
+컨테이너를 재사용하여 **최대 80% 속도 향상**이 가능하다.
+
+```properties
+# ~/.testcontainers.properties
+testcontainers.reuse.enable=true
+```
+
+```java
+// Java 코드
+new PostgreSQLContainer<>("postgres:16-alpine")
+    .withReuse(true);
+```
+
+로컬 개발 시에만 사용하고, CI에서는 끄는 게 좋다.
+
+### 2. Singleton Container 패턴 (CI 적합)
+
+여러 테스트 클래스가 같은 컨테이너를 공유하도록 한다.
+
+```java
+public abstract class AbstractPostgresTest {
+    static final PostgreSQLContainer<?> POSTGRES;
+
+    static {
+        POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+        POSTGRES.start();  // @Container 대신 직접 시작
+    }
+}
+
+// 상속받아 사용 - 모두 같은 컨테이너 재사용
+class TestA extends AbstractPostgresTest { }
+class TestB extends AbstractPostgresTest { }
+```
+
+### 3. 병렬 컨테이너 시작
+
+여러 컨테이너가 필요한 경우 동시에 시작한다.
+
+```java
+Startables.deepStart(postgres, redis, kafka).join();
+```
+
+### 4. Alpine 이미지 사용
+
+이미 `postgres:16-alpine`을 쓰고 있다면 최적화된 상태다.
+일반 이미지는 ~400MB, Alpine은 ~80MB 정도다.
+
+## Testcontainers를 써야 하는 이유
+
+### 1. 프로덕션과 100% 동일한 환경
+
+Flyway 마이그레이션을 그대로 사용하므로 스키마 관리가 단일화된다.
+PostgreSQL 전용 기능(JSONB, PostGIS, 확장 등)을 모두 테스트할 수 있다.
+
+### 2. 스키마 동기화 문제 없음
+
+별도의 `schema.sql`을 관리할 필요가 없다.
+프로덕션 마이그레이션 파일 하나로 끝난다.
+
+### 3. 숨겨진 버그 방지
+
+H2에서 통과하고 PostgreSQL에서 실패하는 버그를 원천 차단한다.
+특히 JSONB 쿼리, 배열 함수, UPSERT 등에서 이런 문제가 자주 발생한다.
+
+### 4. 실제 DB 동작 보장
+
+트랜잭션 격리 수준, NULL 정렬, 타입 캐스팅 등이 프로덕션과 동일하게 동작한다.
+
+## 결론
+
+35%의 속도 차이가 있지만, 그 중 대부분은 컨테이너 시작 시간이다.
+개별 쿼리 시간은 거의 비슷하고, 로컬에서는 Reusable Containers로 충분히 최적화할 수 있다.
+
+H2의 이중 스키마 관리 문제와 PostgreSQL 전용 기능 테스트 불가 문제를 생각하면,
+**Testcontainers + PostgreSQL이 훨씬 나은 선택**이라고 본다.
+
+"테스트는 통과했는데 프로덕션에서 터진다"는 상황이 제일 끔찍하다.
+1.7초 정도의 추가 시간으로 이런 위험을 없앨 수 있다면, 충분히 가치 있는 트레이드오프다.
+
+## 참고
+
+- [Testcontainers 공식 문서 - Reusable Containers](https://java.testcontainers.org/features/reuse/)
+- [Testcontainers PostgreSQL 모듈](https://java.testcontainers.org/modules/databases/postgres/)
+- [H2 Compatibility Mode](https://h2database.com/html/features.html#compatibility)
