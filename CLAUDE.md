@@ -64,7 +64,7 @@ Velite 콘텐츠 스키마 정의:
 - `slug`: 파일 경로에서 자동 생성 (`s.path()`)
 - `body`: MDX 본문 (`s.mdx()`)
 
-문서 작성 규칙은 `post_writing_guideline.md`를 우선 기준으로 사용한다.
+문서 작성 규칙은 `POST_WRITING_GUIDELINE.md`를 우선 기준으로 사용한다.
 Velite 스키마상 `published`, `tags`는 기본값이 있지만, 이 저장소에서는 포스트마다 명시한다.
 
 ### next.config.ts
@@ -107,7 +107,7 @@ const post = posts.find((p) => p.slugAsParams === slug);
 ### 포스트 작성 요청
 
 - 사용자가 주제를 주면, `content/posts/`에 바로 게시 가능한 MDX 포스트를 작성한다.
-- 작성 시 `post_writing_guideline.md` 템플릿/체크리스트를 따른다.
+- 작성 시 `POST_WRITING_GUIDELINE.md` 템플릿/체크리스트를 따른다.
 - 파일명은 `YYYY-MM-DD-slug.mdx` 형식으로 생성한다.
 
 ### 배포 요청 (Vercel)

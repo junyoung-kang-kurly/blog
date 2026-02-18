@@ -67,7 +67,7 @@ tags: ["태그1", "태그2"]
 ---
 ```
 
-자세한 작성 가이드는 [post_writing_guideline.md](./post_writing_guideline.md)를 참고하세요.
+자세한 작성 가이드는 [POST_WRITING_GUIDELINE.md](POST_WRITING_GUIDELINE.md)를 참고하세요.
 
 ## 페이지 구조
 
