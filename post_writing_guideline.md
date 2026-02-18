@@ -11,21 +11,22 @@
 ```
 content/
 └── posts/
-    ├── my-first-post.mdx
-    ├── react-hooks-guide.mdx
-    └── typescript-tips.mdx
+    ├── 2024-12-30-my-first-post.mdx
+    ├── 2024-12-31-react-hooks-guide.mdx
+    └── 2025-01-01-typescript-tips.mdx
 ```
 
 ### 파일명 규칙
 
+- **`YYYY-MM-DD-slug.mdx` 형식** 사용 (예: `2025-01-15-nextjs-routing.mdx`)
 - **소문자** 사용
 - **케밥 케이스** (단어 사이 하이픈) 사용
 - 영문으로 작성 권장 (URL에 사용됨)
-- 예: `nextjs-15-features.mdx`, `react-server-components.mdx`
+- 예: `2025-02-10-nextjs-15-features.mdx`, `2025-02-11-react-server-components.mdx`
 
 파일명이 곧 URL slug가 됩니다:
-- `hello-world.mdx` → `/posts/hello-world`
-- `typescript-tips.mdx` → `/posts/typescript-tips`
+- `2025-02-10-hello-world.mdx` → `/posts/2025-02-10-hello-world`
+- `2025-02-11-typescript-tips.mdx` → `/posts/2025-02-11-typescript-tips`
 
 ## 프론트매터
 
@@ -38,6 +39,8 @@ content/
 title: "포스트 제목"
 description: "포스트에 대한 간단한 설명"
 date: "2024-12-30"
+published: true
+tags: ["태그1", "태그2"]
 ---
 ```
 
@@ -48,10 +51,14 @@ date: "2024-12-30"
 title: "포스트 제목"
 description: "포스트에 대한 간단한 설명"
 date: "2024-12-30"
-published: true        # 공개 여부 (기본값: true)
-tags: ["React", "Next.js", "프론트엔드"]  # 태그 (기본값: [])
+published: true
+tags: ["React", "Next.js", "프론트엔드"]
+series: "series-slug"    # 시리즈 식별자 (선택)
+seriesOrder: 1           # 시리즈 내 순서 (선택)
 ---
 ```
+
+`published`, `tags`는 Velite 스키마에 기본값이 있지만, 이 프로젝트에서는 작성 일관성을 위해 항상 명시합니다.
 
 ### 필드 상세 설명
 
@@ -60,8 +67,10 @@ tags: ["React", "Next.js", "프론트엔드"]  # 태그 (기본값: [])
 | `title` | 문자열 | O | 포스트 제목 (최대 99자) |
 | `description` | 문자열 | O | 포스트 설명 (최대 999자) |
 | `date` | 날짜 | O | 작성일 (ISO 형식: YYYY-MM-DD) |
-| `published` | 불리언 | X | 공개 여부 (기본값: true) |
-| `tags` | 배열 | X | 태그 목록 (기본값: []) |
+| `published` | 불리언 | O | 공개 여부 (권장 기본값: `true`) |
+| `tags` | 배열 | O | 태그 목록 (비어 있어도 `[]`로 명시) |
+| `series` | 문자열 | X | 시리즈 식별자 (kebab-case) |
+| `seriesOrder` | 숫자 | X | 시리즈 내 순서 (1부터 시작) |
 
 ### 예시
 
@@ -229,14 +238,15 @@ title: "작성 중인 포스트"
 description: "아직 공개하지 않을 포스트입니다."
 date: "2024-12-30"
 published: false
+tags: []
 ---
 ```
 
 ## 새 포스트 작성 체크리스트
 
 1. [ ] `content/posts/` 에 `.mdx` 파일 생성
-2. [ ] 파일명은 영문 소문자, 케밥 케이스
-3. [ ] 프론트매터 작성 (title, description, date 필수)
+2. [ ] 파일명은 `YYYY-MM-DD-slug.mdx` 형식
+3. [ ] 프론트매터 작성 (`title`, `description`, `date`, `published`, `tags` 필수)
 4. [ ] 본문 작성
 5. [ ] `pnpm dev`로 미리보기 확인
 6. [ ] `published: true` 확인 (공개할 경우)

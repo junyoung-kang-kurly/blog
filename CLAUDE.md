@@ -24,6 +24,8 @@ pnpm dev      # 개발 서버 실행 (webpack 모드)
 pnpm build    # 프로덕션 빌드
 pnpm start    # 프로덕션 서버 실행
 pnpm lint     # ESLint 실행
+npx vercel    # Vercel 프리뷰 배포
+npx vercel --prod  # Vercel 프로덕션 배포
 ```
 
 ## 프로젝트 구조
@@ -62,6 +64,9 @@ Velite 콘텐츠 스키마 정의:
 - `slug`: 파일 경로에서 자동 생성 (`s.path()`)
 - `body`: MDX 본문 (`s.mdx()`)
 
+문서 작성 규칙은 `post_writing_guideline.md`를 우선 기준으로 사용한다.
+Velite 스키마상 `published`, `tags`는 기본값이 있지만, 이 저장소에서는 포스트마다 명시한다.
+
 ### next.config.ts
 
 - Velite 웹팩 플러그인 설정
@@ -93,6 +98,29 @@ const post = posts.find((p) => p.slugAsParams === slug);
 
 4. **MDX 렌더링**: `mdx-content.tsx`는 클라이언트 컴포넌트로 `useMDXComponent` 훅 사용.
 
+5. **파일명 규칙(작성 표준)**: 새 포스트 파일명은 `YYYY-MM-DD-slug.mdx` 형식을 사용.
+
+6. **frontmatter 규칙(작성 표준)**: `title`, `description`, `date`, `published`, `tags`를 항상 명시.
+
+## 운영 워크플로우
+
+### 포스트 작성 요청
+
+- 사용자가 주제를 주면, `content/posts/`에 바로 게시 가능한 MDX 포스트를 작성한다.
+- 작성 시 `post_writing_guideline.md` 템플릿/체크리스트를 따른다.
+- 파일명은 `YYYY-MM-DD-slug.mdx` 형식으로 생성한다.
+
+### 배포 요청 (Vercel)
+
+배포 요청 시 아래 순서로 진행한다.
+
+1. `pnpm lint`
+2. `pnpm build`
+3. 프리뷰 배포: `npx vercel`
+4. 프로덕션 배포가 명시된 경우: `npx vercel --prod`
+
+검증 또는 배포 실패 시 원인 로그를 요약하고 수정 후 재시도한다.
+
 ## 새 기능 추가 시 고려사항
 
 - 새 페이지는 `src/app/` 디렉토리에 추가
@@ -112,6 +140,8 @@ const post = posts.find((p) => p.slugAsParams === slug);
 여러 편으로 구성된 연재 글을 작성할 때 시리즈 기능을 사용한다.
 
 ### frontmatter 설정
+
+아래 예시는 시리즈 관련 필드만 발췌한 예시입니다.
 
 ```yaml
 ---
