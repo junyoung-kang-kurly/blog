@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { posts } from "#site/content";
+import { posts } from "@/lib/content";
 import { formatDate, getTagCounts, sortPostsByDate } from "@/lib/utils";
 import { siteConfig } from "@/lib/site-config";
 import { Calendar, ArrowLeft } from "lucide-react";

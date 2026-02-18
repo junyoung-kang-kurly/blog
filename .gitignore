@@ -44,3 +44,6 @@ next-env.d.ts
 .velite
 
 .idea
+/.claude/settings.local.json
+/.artifacts/mae-katex-full.png
+/.artifacts/mae-katex-top.png

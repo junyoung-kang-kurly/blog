@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { posts } from "#site/content";
+import { posts } from "@/lib/content";
 import { getTagCounts } from "@/lib/utils";
 
 export const metadata: Metadata = {

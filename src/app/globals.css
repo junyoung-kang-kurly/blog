@@ -182,6 +182,13 @@ body {
   padding-right: 0.5rem;
 }
 
+/* KaTeX styles */
+.prose .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
 /* Rehype Pretty Code styles */
 [data-rehype-pretty-code-figure] pre {
   background: var(--muted) !important;

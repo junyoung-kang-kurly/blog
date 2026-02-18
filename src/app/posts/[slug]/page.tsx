@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { posts } from "#site/content";
+import { posts } from "@/lib/content";
 import { MDXContent } from "@/components/mdx-content";
 import { SeriesNavigation } from "@/components/series-navigation";
 import { TableOfContents } from "@/components/post-toc";

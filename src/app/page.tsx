@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { posts } from "#site/content";
+import { posts } from "@/lib/content";
 import { getTagCounts, sortPostsByDate } from "@/lib/utils";
 import { PostSearch } from "@/components/post-search";
 
