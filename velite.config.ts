@@ -1,5 +1,8 @@
 import { defineConfig, defineCollection, s } from "velite";
+import rehypeKatex from "rehype-katex";
 import rehypePrettyCode from "rehype-pretty-code";
+import rehypeSlug from "rehype-slug";
+import remarkMath from "remark-math";
 
 const posts = defineCollection({
   name: "Post",
@@ -33,7 +36,10 @@ export default defineConfig({
   },
   collections: { posts },
   mdx: {
+    remarkPlugins: [[remarkMath, { singleDollarTextMath: false }]],
     rehypePlugins: [
+      rehypeSlug,
+      rehypeKatex,
       [
         rehypePrettyCode,
         {
