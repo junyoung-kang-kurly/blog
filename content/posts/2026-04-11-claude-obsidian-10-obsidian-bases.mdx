@@ -1,0 +1,452 @@
+---
+title: "claude-obsidian 스킬 뜯어보기 (10): obsidian-bases"
+description: "Obsidian 네이티브 데이터베이스의 .base 파일 문법, 필터/수식/뷰 타입, 위키 템플릿을 코드 레벨에서 분석한다."
+date: "2026-04-11"
+published: true
+tags: ["claude-obsidian", "obsidian", "bases", "database", "query"]
+series: "claude-obsidian-skills"
+seriesOrder: 10
+---
+
+## 이 스킬이 하는 일
+
+`obsidian-bases`는 Claude가 Obsidian 볼트 안에서 **동적 데이터베이스 뷰를 생성하고 편집하도록 가르치는 레퍼런스 스킬**이다. `.base` 파일의 YAML 문법, 필터 조건, 계산 수식, 테이블/카드/리스트 뷰 타입, 위키 볼트용 대시보드 템플릿을 정의한다.
+
+왜 필요한가? Obsidian Bases는 2025년에 도입된 코어 기능이다. 플러그인 없이 볼트 내 노트를 쿼리 가능한 동적 뷰로 만들어준다. 그런데 `.base` 파일은 YAML 기반의 고유 문법을 쓰기 때문에, Dataview나 일반 YAML과 혼동하기 쉽다. 이 스킬은 Claude가 `from:`, `where:`, `sort:` 같은 Dataview 문법을 `.base` 파일에 잘못 쓰는 것을 방지하고, 올바른 필터/수식/뷰 문법만 사용하도록 한다.
+
+## 파일 구조
+
+```text title="obsidian-bases 스킬 파일 트리"
+claude-obsidian/
+└── skills/obsidian-bases/
+    └── SKILL.md         # 스킬 본체 — .base 파일 전체 레퍼런스
+```
+
+단일 파일 스킬이다. SKILL.md 하나가 `.base` 파일 문법 전체를 커버한다. `obsidian-markdown` 스킬과 마찬가지로 Claude가 `.base` 파일을 작성할 때마다 참조하는 치트시트 역할이다. 294줄 분량으로 필터, 수식, 뷰 타입, 위키 템플릿까지 빠짐없이 담고 있다.
+
+---
+
+## SKILL.md 뜯어보기
+
+### Obsidian Bases 개요
+
+프론트매터부터 보자.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+---
+name: obsidian-bases
+description: "Create and edit Obsidian Bases (.base files):
+  Obsidian's native database layer for dynamic tables, card views,
+  list views, filters, formulas, and summaries over vault notes.
+  Triggers on: create a base, add a base file, obsidian bases,
+  base view, filter notes, formula, database view, dynamic table,
+  task tracker base, reading list base."
+allowed-tools: Read Write
+---
+```
+
+`description`에 트리거 키워드가 촘촘하다: `create a base`, `obsidian bases`, `base view`, `filter notes`, `formula`, `database view`, `dynamic table`, `task tracker base`, `reading list base`. 사용자가 "태스크 트래커 만들어줘"라고 해도, "수식으로 나이 계산해줘"라고 해도 이 스킬이 로드된다.
+
+`allowed-tools`는 `Read Write` 두 가지다. `.base` 파일은 순수 YAML이므로 텍스트를 읽고 쓰는 것이 전부다. Edit이 빠진 이유는 `.base` 파일이 대부분 전체 재작성(Write)으로 처리되기 때문일 것이다 — YAML의 들여쓰기 의존성 때문에 부분 편집보다 전체 교체가 안전하다.
+
+SKILL.md 본문의 첫 단락이 Obsidian Bases를 한 문장으로 정의한다.
+
+```markdown title="skills/obsidian-bases/SKILL.md"
+Obsidian Bases (launched 2025) turns vault notes into queryable,
+dynamic views. Tables, cards, lists, maps. Defined in `.base` files.
+No plugin required; it is a core Obsidian feature.
+```
+
+핵심은 **"No plugin required"**다. Dataview는 커뮤니티 플러그인이지만, Bases는 Obsidian 코어에 내장되어 있다. 이 차이가 중요한 이유는 안정성과 호환성이다 — 코어 기능은 Obsidian 업데이트와 함께 관리된다.
+
+또한 `from:`, `where:` 같은 Dataview 문법과의 혼동을 방지하는 경고가 스킬 하단에 명시되어 있다.
+
+```markdown title="skills/obsidian-bases/SKILL.md (What Not to Do)"
+- Do not use `from:` or `where:`: those are Dataview syntax, not Obsidian Bases
+- Do not use `sort:` at the root level: sorting is per-view via `order:` and `groupBy:`
+```
+
+이 "하지 말아야 할 것" 목록이 LLM 스킬에서 특히 중요하다. Claude는 학습 데이터에서 Dataview를 훨씬 많이 본 적이 있으므로, 명시적으로 금지하지 않으면 습관적으로 `from:`, `where:`를 쓴다.
+
+---
+
+### Base File Format -- .base YAML 구조
+
+`.base` 파일의 루트 키는 다섯 가지다: `filters`, `formulas`, `properties`, `summaries`, `views`. SKILL.md가 제시하는 전체 구조를 보자.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+# Global filters: apply to ALL views
+filters:
+  and:
+    - file.hasTag("wiki")
+    - 'status != "archived"'
+
+# Computed properties
+formulas:
+  age_days: '(now() - file.ctime).days.round(0)'
+  status_icon: 'if(status == "mature", "✅", "🔄")'
+
+# Display name overrides for properties panel
+properties:
+  status:
+    displayName: "Status"
+  formula.age_days:
+    displayName: "Age (days)"
+
+# One or more views
+views:
+  - type: table
+    name: "All Pages"
+    order:
+      - file.name
+      - type
+      - status
+      - updated
+      - formula.age_days
+```
+
+각 섹션의 역할을 정리하면 다음과 같다.
+
+| 루트 키 | 역할 |
+|---------|------|
+| `filters` | 어떤 노트를 포함할지 결정 (전역 필터) |
+| `formulas` | 계산 속성 정의 (날짜 차이, 조건부 라벨 등) |
+| `properties` | 속성 표시 이름 재정의 |
+| `summaries` | 열 요약 (합계, 평균 등) |
+| `views` | 뷰 배열 (테이블, 카드, 리스트) |
+
+`views`가 배열인 점에 주목하자. 하나의 `.base` 파일에 여러 뷰를 정의할 수 있다. Obsidian UI에서 탭처럼 전환된다.
+
+**YAML 따옴표 규칙**도 짚고 넘어가야 한다. `.base` 파일에서 가장 흔한 에러가 따옴표 문제다.
+
+```yaml title="skills/obsidian-bases/SKILL.md (YAML Quoting Rules)"
+# 수식에 큰따옴표가 들어가면 작은따옴표로 감싼다
+formulas:
+  done_label: 'if(done, "Yes", "No")'
+
+# 콜론이 들어가는 문자열은 큰따옴표로 감싼다
+properties:
+  status:
+    displayName: "Status: Active"
+```
+
+규칙은 단순하다: 수식 안에 `"` 가 있으면 바깥을 `'`로, 값에 `:`가 있으면 `"`로 감싼다. 이 규칙을 어기면 YAML 파싱이 깨진다.
+
+---
+
+### Filters -- Global, Boolean Logic, Functions
+
+필터는 `.base` 파일의 첫 번째 관문이다. 어떤 노트를 뷰에 포함할지 결정한다.
+
+**가장 단순한 형태** -- 문자열 하나로 조건을 건다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+# Single string filter
+filters: 'status == "current"'
+```
+
+**AND 조건** -- 모든 조건이 참이어야 한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+filters:
+  and:
+    - 'status != "archived"'
+    - file.hasTag("wiki")
+```
+
+**OR 조건** -- 하나라도 참이면 포함한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+filters:
+  or:
+    - file.hasTag("concept")
+    - file.hasTag("entity")
+```
+
+**NOT 조건** -- 매치되는 노트를 제외한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+filters:
+  not:
+    - file.inFolder("wiki/meta")
+```
+
+**중첩 조건** -- AND 안에 OR를 넣을 수 있다. 이것이 Dataview의 `WHERE` 절과 결정적으로 다른 점이다. SQL 스타일 문법이 아니라 YAML 트리 구조로 논리를 표현한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+filters:
+  and:
+    - file.inFolder("wiki/")
+    - or:
+        - 'type == "concept"'
+        - 'type == "entity"'
+```
+
+이 중첩 구조의 장점은 가독성이다. 복잡한 조건도 들여쓰기만으로 논리 흐름이 보인다.
+
+**비교 연산자**는 `==`, `!=`, `>`, `<`, `>=`, `<=` 여섯 가지다.
+
+**필터 함수**는 세 가지가 정의되어 있다.
+
+| 함수 | 설명 | 예시 |
+|------|------|------|
+| `file.hasTag("x")` | 특정 태그를 가진 노트 | `file.hasTag("wiki")` |
+| `file.inFolder("path/")` | 특정 폴더 내 노트 | `file.inFolder("wiki/sources/")` |
+| `file.hasLink("Note")` | 특정 노트를 링크하는 노트 | `file.hasLink("Index")` |
+
+`file.hasTag`와 `file.inFolder`가 위키 볼트에서 가장 많이 쓰일 것이다. 위키 노트는 태그와 폴더 구조로 분류되기 때문이다.
+
+---
+
+### Formulas -- 계산 속성, Duration, Nullable Guards
+
+수식은 `.base` 파일의 가장 강력한 기능이다. `formulas:` 블록에 정의하고, 뷰에서 `formula.이름`으로 참조한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+formulas:
+  # 생성 후 경과 일수
+  age_days: '(now() - file.ctime).days.round(0)'
+
+  # 마감일까지 남은 일수
+  days_until: 'if(due_date, (date(due_date) - today()).days, "")'
+
+  # 조건부 아이콘
+  status_icon: 'if(status == "mature", "✅", if(status == "developing", "🔄", "🌱"))'
+
+  # 글자 수 추정
+  word_est: '(file.size / 5).round(0)'
+```
+
+네 가지 수식 각각이 다른 패턴을 보여준다.
+
+1. **날짜 연산**: `now() - file.ctime` -- 현재 시각에서 생성 시각을 뺀다
+2. **조건부 연산**: `if(조건, 참값, 거짓값)` -- 중첩 가능하다 (`if` 안에 `if`)
+3. **파일 메타데이터**: `file.size` -- 바이트 단위 파일 크기
+4. **수학 함수**: `.round(0)` -- 소수점 반올림
+
+여기서 SKILL.md가 강조하는 **핵심 규칙 두 가지**를 반드시 지켜야 한다.
+
+**규칙 1: Duration 타입 처리** -- 날짜끼리 빼면 숫자가 아니라 `Duration` 객체가 반환된다. 반드시 `.days`로 일수를 추출한 후에 다른 연산을 해야 한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+# CORRECT
+age: '(now() - file.ctime).days'
+
+# WRONG: crashes
+age: '(now() - file.ctime).round(0)'
+```
+
+틀린 코드가 크래시하는 이유는 `Duration` 객체에 `.round()` 메서드가 없기 때문이다. `.days`를 먼저 호출해서 숫자로 변환한 후에 `.round(0)`를 체이닝해야 한다. 이 실수는 Dataview에서 넘어온 사용자에게 특히 흔하다 -- Dataview는 날짜 차이를 바로 숫자로 반환하기 때문이다.
+
+**규칙 2: Nullable 속성 가드** -- 프론트매터 속성이 비어있을 수 있다. `if()`로 먼저 존재 여부를 확인해야 한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+# CORRECT
+days_left: 'if(due_date, (date(due_date) - today()).days, "")'
+```
+
+`due_date`가 없는 노트에서 `date(due_date)`를 호출하면 에러가 난다. `if(due_date, ...)` 가드가 이를 방지한다. 빈 문자열 `""`을 반환하면 뷰에서 해당 셀이 비어 보인다.
+
+세 가지 속성 타입도 정리해 두자.
+
+| 속성 타입 | 접두사 | 예시 |
+|-----------|--------|------|
+| 노트 속성 (프론트매터) | 없음 | `status`, `type`, `updated` |
+| 파일 속성 (메타데이터) | `file.` | `file.name`, `file.mtime`, `file.size`, `file.ctime`, `file.tags`, `file.folder` |
+| 수식 속성 (계산) | `formula.` | `formula.age_days`, `formula.status_icon` |
+
+`views`의 `order:`에서 이 세 가지를 자유롭게 섞어 쓸 수 있다. `file.name`과 `status`(프론트매터)와 `formula.age_days`(계산)를 같은 테이블에 나란히 배치하는 식이다.
+
+---
+
+### View Types -- Table, Cards, List
+
+`.base` 파일은 세 가지 뷰 타입을 지원한다. 모두 `views:` 배열 안에 정의한다.
+
+**Table** -- 가장 많이 쓰이는 뷰다. 스프레드시트 형태로 노트를 표시한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+views:
+  - type: table
+    name: "Wiki Index"
+    limit: 100
+    order:
+      - file.name
+      - type
+      - status
+      - updated
+    groupBy:
+      property: type
+      direction: ASC
+```
+
+테이블 뷰의 고유 키를 정리하면 다음과 같다.
+
+| 키 | 역할 | 예시 |
+|----|------|------|
+| `name` | 뷰 이름 (탭 라벨) | `"Wiki Index"` |
+| `limit` | 표시 행 수 제한 | `100` |
+| `order` | 표시할 열 목록 (순서 유지) | `[file.name, type, status]` |
+| `groupBy.property` | 그룹 기준 속성 | `type` |
+| `groupBy.direction` | 정렬 방향 | `ASC` 또는 `DESC` |
+
+**Cards** -- 갤러리/칸반 스타일이다. 이미지가 있는 노트나 짧은 메모에 어울린다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+views:
+  - type: cards
+    name: "Gallery"
+    order:
+      - file.name
+      - tags
+      - status
+```
+
+카드 뷰는 각 노트를 카드 형태로 배치한다. `order:`에 나열한 속성이 카드 안에 표시된다. `groupBy`를 추가하면 칸반 보드처럼 쓸 수도 있다.
+
+**List** -- 가장 간결한 뷰다. 속성 몇 개만 한 줄씩 나열한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md"
+views:
+  - type: list
+    name: "Quick List"
+    order:
+      - file.name
+      - status
+```
+
+세 가지 뷰 타입의 선택 기준을 정리하면 다음과 같다.
+
+| 뷰 타입 | 적합한 용도 |
+|---------|------------|
+| `table` | 속성이 많은 노트 관리, 정렬/그룹 필요 |
+| `cards` | 시각적 탐색, 이미지 포함 노트, 칸반 |
+| `list` | 빠른 훑어보기, 최소한의 속성 표시 |
+
+하나의 `.base` 파일에 세 가지 뷰를 모두 넣을 수 있다. 같은 데이터를 테이블로도, 카드로도, 리스트로도 볼 수 있는 것이다.
+
+---
+
+### Base Embedding -- 노트에 뷰 삽입하기
+
+`.base` 파일을 만들었으면 다른 노트에 임베드할 수 있다. Obsidian의 표준 임베드 문법을 그대로 쓴다.
+
+```text title="skills/obsidian-bases/SKILL.md"
+![[MyBase.base]]
+
+![[MyBase.base#View Name]]
+```
+
+첫 번째 형태는 `.base` 파일의 첫 번째 뷰를 삽입한다. 두 번째 형태는 `#View Name`으로 특정 뷰를 지정한다 -- 뷰가 여러 개일 때 원하는 뷰만 골라 넣을 수 있다.
+
+이 임베드 기능이 위키 볼트에서 특히 강력하다. 예를 들어 `wiki/index.md`에 대시보드 뷰를 임베드하면, 인덱스 페이지를 열 때마다 최신 상태의 동적 테이블을 볼 수 있다.
+
+**저장 위치**에 대한 가이드도 있다.
+
+```markdown title="skills/obsidian-bases/SKILL.md"
+Store `.base` files in `wiki/meta/` for vault dashboards:
+- `wiki/meta/dashboard.base`: main content view
+- `wiki/meta/entities.base`: entity tracker
+- `wiki/meta/sources.base`: ingestion log
+```
+
+`wiki/meta/` 폴더에 `.base` 파일을 모아두는 것이 convention이다. 위키 콘텐츠와 메타 정보를 분리하는 원칙을 따른다.
+
+---
+
+### Wiki Vault Templates -- 대시보드, 인덱스
+
+SKILL.md의 마지막 핵심 섹션이 위키 볼트용 템플릿 세 가지를 제공한다. 이 템플릿들이 `obsidian-bases` 스킬의 실전 활용 가이드다.
+
+**1. Wiki Content Dashboard** -- 메타 폴더를 제외한 모든 위키 페이지를 표시한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md (Wiki content dashboard)"
+filters:
+  and:
+    - file.inFolder("wiki/")
+    - not:
+        - file.inFolder("wiki/meta")
+
+formulas:
+  age: '(now() - file.ctime).days.round(0)'
+
+properties:
+  formula.age:
+    displayName: "Age (days)"
+
+views:
+  - type: table
+    name: "All Wiki Pages"
+    order:
+      - file.name
+      - type
+      - status
+      - updated
+      - formula.age
+    groupBy:
+      property: type
+      direction: ASC
+```
+
+이 템플릿이 앞에서 다룬 모든 개념을 종합한다: `and`/`not` 중첩 필터로 `wiki/` 폴더에서 `wiki/meta`를 제외하고, `age` 수식으로 생성 후 경과 일수를 계산하고, `properties`로 표시 이름을 재정의하고, 테이블 뷰에서 `type`으로 그룹화한다.
+
+**2. Entity Index** -- 사람, 조직, 리포지토리 등 엔티티를 추적한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md (Entity index)"
+filters:
+  and:
+    - file.inFolder("wiki/entities/")
+    - 'file.ext == "md"'
+
+views:
+  - type: table
+    name: "Entities"
+    order:
+      - file.name
+      - entity_type
+      - status
+      - updated
+    groupBy:
+      property: entity_type
+      direction: ASC
+```
+
+`file.ext == "md"` 조건으로 마크다운 파일만 필터링하는 점이 눈에 띈다. `wiki/entities/` 폴더에 `.base` 파일이나 다른 형식이 섞여 있어도 안전하다.
+
+**3. Recent Ingests** -- 소스 인제스트 로그를 추적한다.
+
+```yaml title="skills/obsidian-bases/SKILL.md (Recent ingests)"
+filters:
+  and:
+    - file.inFolder("wiki/sources/")
+
+views:
+  - type: table
+    name: "Sources"
+    order:
+      - file.name
+      - source_type
+      - created
+      - status
+    groupBy:
+      property: source_type
+      direction: ASC
+```
+
+세 템플릿 모두 `groupBy`를 사용한다는 공통점이 있다. 위키 볼트에서는 노트를 타입별로 그룹화하는 것이 가장 자연스러운 보기 방식이기 때문이다. `wiki-ingest` 스킬이 생성하는 소스 노트의 `source_type` 프론트매터와 자연스럽게 연동된다.
+
+---
+
+## 다른 스킬과의 연결점
+
+`obsidian-bases`는 독립적인 레퍼런스 스킬이지만, 위키 볼트 내에서 다른 스킬들과 긴밀하게 연결된다.
+
+**wiki 스킬**: `wiki` 스킬이 정의하는 볼트 구조(`wiki/`, `wiki/meta/`, `wiki/entities/`, `wiki/sources/`)가 `.base` 파일의 `file.inFolder()` 필터와 직접 대응한다. 볼트 scaffold가 곧 필터 경로다.
+
+**wiki-ingest 스킬**: `wiki-ingest`가 생성하는 프론트매터 속성(`type`, `status`, `source_type`, `entity_type`, `created`, `updated`)이 `.base` 뷰의 `order:`와 `groupBy:`에서 그대로 사용된다. 인제스트 품질이 곧 대시보드 품질이다.
+
+**wiki-lint 스킬**: `wiki-lint`가 검증하는 프론트매터 유효성(필수 필드 존재 여부, 값 형식)이 `.base` 수식의 안정성을 보장한다. `status` 필드가 빠진 노트가 있으면 `formula.status_icon`이 깨진다.
+
+**obsidian-markdown 스킬**: 임베드 문법 `![[MyBase.base]]`는 `obsidian-markdown` 스킬이 정의하는 임베드 문법의 확장이다. `.md` 파일 임베드와 동일한 문법으로 `.base` 파일을 삽입한다.
+
+이 연결 구조가 claude-obsidian의 설계 철학을 보여준다. 각 스킬은 독립적으로 동작하지만, 볼트 안에서 프론트매터와 폴더 구조를 매개로 자연스럽게 합류한다. `obsidian-bases`는 그 합류 지점에서 **읽기 인터페이스** 역할을 한다 -- 다른 스킬들이 쓰고 관리하는 데이터를 동적으로 보여주는 뷰 레이어다.

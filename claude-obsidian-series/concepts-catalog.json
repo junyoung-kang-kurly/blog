@@ -1,0 +1,1695 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-04-11",
+  "source_repo": "/Users/junyoung.kang/IdeaProjects/claude-obsidian",
+  "total_concepts": 262,
+  "skills": [
+    {
+      "id": "wiki",
+      "name": "wiki",
+      "blog_post_number": 1,
+      "source_files": [
+        "skills/wiki/SKILL.md",
+        "skills/wiki/references/modes.md",
+        "skills/wiki/references/frontmatter.md",
+        "skills/wiki/references/css-snippets.md",
+        "skills/wiki/references/git-setup.md",
+        "skills/wiki/references/plugins.md",
+        "skills/wiki/references/rest-api.md",
+        "skills/wiki/references/mcp-setup.md",
+        "commands/wiki.md"
+      ],
+      "concepts": [
+        {
+          "id": "wiki/knowledge-compounding",
+          "name": "Knowledge Compounding",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "wiki가 영구적 산출물로 지식 누적"
+        },
+        {
+          "id": "wiki/three-layer-architecture",
+          "name": "Three Layer Architecture",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": ".raw/ → wiki/ → CLAUDE.md 계층 구조"
+        },
+        {
+          "id": "wiki/standard-wiki-structure",
+          "name": "Standard Wiki Structure",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "index, log, hot cache, overview 등 표준 폴더"
+        },
+        {
+          "id": "wiki/hot-cache",
+          "name": "Hot Cache",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "~500단어 최근 문맥 요약"
+        },
+        {
+          "id": "wiki/persistent-context-update",
+          "name": "Persistent Context Update",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "매 ingest/query/세션 종료 시 hot.md 갱신"
+        },
+        {
+          "id": "wiki/operation-routing",
+          "name": "Operation Routing",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "사용자 입력을 SCAFFOLD/INGEST/QUERY 등으로 라우팅"
+        },
+        {
+          "id": "wiki/vault-scaffold",
+          "name": "Vault Scaffold",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "한 문장에서 전체 폴더 구조 자동화"
+        },
+        {
+          "id": "wiki/wiki-mode-selection",
+          "name": "Wiki Mode Selection",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "6가지 모드 중 선택"
+        },
+        {
+          "id": "wiki/claude-md-template",
+          "name": "Claude Md Template",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "vault root에 mode/purpose/conventions 기록"
+        },
+        {
+          "id": "wiki/cross-project-referencing",
+          "name": "Cross Project Referencing",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "다른 프로젝트에서 hot.md → index → domain 순서 참조"
+        },
+        {
+          "id": "wiki/mode-a-website",
+          "name": "Mode A Website",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "웹사이트 콘텐츠 매핑, SEO 감사용"
+        },
+        {
+          "id": "wiki/page-status-tracking",
+          "name": "Page Status Tracking",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "live, redirect, 404, stub, no-index 상태"
+        },
+        {
+          "id": "wiki/mode-b-github",
+          "name": "Mode B Github",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "코드베이스 아키텍처 맵핑용"
+        },
+        {
+          "id": "wiki/module-dependency-tracking",
+          "name": "Module Dependency Tracking",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "depends_on, used_by 관계 기록"
+        },
+        {
+          "id": "wiki/architecture-decision-records",
+          "name": "Architecture Decision Records",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "아키텍처 결정과 근거 기록"
+        },
+        {
+          "id": "wiki/mode-c-business",
+          "name": "Mode C Business",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "프로젝트, 경쟁 정보, 팀 지식베이스용"
+        },
+        {
+          "id": "wiki/stakeholder-mapping",
+          "name": "Stakeholder Mapping",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "의사결정권자별 영향도 추적"
+        },
+        {
+          "id": "wiki/mode-d-personal",
+          "name": "Mode D Personal",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "개인 목표, 학습, 관계 추적용"
+        },
+        {
+          "id": "wiki/goal-tracking-with-progress",
+          "name": "Goal Tracking With Progress",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "진행률, 우선순위, 목표 날짜"
+        },
+        {
+          "id": "wiki/life-area-organization",
+          "name": "Life Area Organization",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "health, career 등 영역별 분류"
+        },
+        {
+          "id": "wiki/hot-cache-for-personal-mode",
+          "name": "Hot Cache For Personal Mode",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "현재 활동 영역 빠른 파악"
+        },
+        {
+          "id": "wiki/mode-e-research",
+          "name": "Mode E Research",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "논문, 개념, 엔티티 추적용"
+        },
+        {
+          "id": "wiki/paper-status-workflow",
+          "name": "Paper Status Workflow",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "raw → summarized → synthesized → superseded"
+        },
+        {
+          "id": "wiki/methodology-comparison",
+          "name": "Methodology Comparison",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "연구 방법론 비교"
+        },
+        {
+          "id": "wiki/mode-f-book-course",
+          "name": "Mode F Book Course",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "등장인물/테마/개념 추적"
+        },
+        {
+          "id": "wiki/chapter-sequencing",
+          "name": "Chapter Sequencing",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "강좌 진행 순서 맵핑"
+        },
+        {
+          "id": "wiki/mode-combination",
+          "name": "Mode Combination",
+          "source_file": "skills/wiki/references/modes.md",
+          "description": "여러 모드 혼합"
+        },
+        {
+          "id": "wiki/flat-yaml-structure",
+          "name": "Flat Yaml Structure",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "nested 없는 단순 YAML"
+        },
+        {
+          "id": "wiki/universal-frontmatter-fields",
+          "name": "Universal Frontmatter Fields",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "type, title, created, updated 등 필수"
+        },
+        {
+          "id": "wiki/status-lifecycle",
+          "name": "Status Lifecycle",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "seed → developing → mature → evergreen"
+        },
+        {
+          "id": "wiki/source-type-taxonomy",
+          "name": "Source Type Taxonomy",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "article, video, podcast 등"
+        },
+        {
+          "id": "wiki/confidence-levels",
+          "name": "Confidence Levels",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "high/medium/low"
+        },
+        {
+          "id": "wiki/entity-type-classification",
+          "name": "Entity Type Classification",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "person, organization, product 등"
+        },
+        {
+          "id": "wiki/concept-complexity-levels",
+          "name": "Concept Complexity Levels",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "basic, intermediate, advanced"
+        },
+        {
+          "id": "wiki/comparison-page-schema",
+          "name": "Comparison Page Schema",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "subjects, dimensions, verdict"
+        },
+        {
+          "id": "wiki/answer-quality-rating",
+          "name": "Answer Quality Rating",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "draft, solid, definitive"
+        },
+        {
+          "id": "wiki/domain-taxonomy",
+          "name": "Domain Taxonomy",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "subdomain_of 계층"
+        },
+        {
+          "id": "wiki/yaml-date-format",
+          "name": "Yaml Date Format",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "YYYY-MM-DD"
+        },
+        {
+          "id": "wiki/quoted-wikilinks-in-yaml",
+          "name": "Quoted Wikilinks In Yaml",
+          "source_file": "skills/wiki/references/frontmatter.md",
+          "description": "frontmatter 내 wikilink 인용 규칙"
+        },
+        {
+          "id": "wiki/css-snippet-system",
+          "name": "Css Snippet System",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "vault-colors.css 기반 커스터마이징"
+        },
+        {
+          "id": "wiki/folder-color-coding",
+          "name": "Folder Color Coding",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "data-path 선택자 폴더별 색상"
+        },
+        {
+          "id": "wiki/custom-callout-styling",
+          "name": "Custom Callout Styling",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "RGB + lucide 아이콘 정의"
+        },
+        {
+          "id": "wiki/contradiction-callout",
+          "name": "Contradiction Callout",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "출처 간 충돌 표시"
+        },
+        {
+          "id": "wiki/gap-callout",
+          "name": "Gap Callout",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "소스 부족 표시"
+        },
+        {
+          "id": "wiki/key-insight-callout",
+          "name": "Key Insight Callout",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "핵심 정보 강조"
+        },
+        {
+          "id": "wiki/stale-callout",
+          "name": "Stale Callout",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "오래된 주장 표시"
+        },
+        {
+          "id": "wiki/graph-view-groups",
+          "name": "Graph View Groups",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "path 기반 graph view 색상화"
+        },
+        {
+          "id": "wiki/minimal-theme-integration",
+          "name": "Minimal Theme Integration",
+          "source_file": "skills/wiki/references/css-snippets.md",
+          "description": "dark theme 최적화"
+        },
+        {
+          "id": "wiki/vault-git-initialization",
+          "name": "Vault Git Initialization",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": "git init + add + commit"
+        },
+        {
+          "id": "wiki/workspace-exclusion",
+          "name": "Workspace Exclusion",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": "workspace.json 변경 추적 제외"
+        },
+        {
+          "id": "wiki/plugin-data-exclusion",
+          "name": "Plugin Data Exclusion",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": ".smart-connections/ 등 제외"
+        },
+        {
+          "id": "wiki/obsidian-git-auto-backup",
+          "name": "Obsidian Git Auto Backup",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": "15분 간격 자동 커밋"
+        },
+        {
+          "id": "wiki/background-git-workflow",
+          "name": "Background Git Workflow",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": "파일 변경 시 자동 commit/push"
+        },
+        {
+          "id": "wiki/remote-github-integration",
+          "name": "Remote Github Integration",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": "GitHub 백업 연동"
+        },
+        {
+          "id": "wiki/private-vault-repository",
+          "name": "Private Vault Repository",
+          "source_file": "skills/wiki/references/git-setup.md",
+          "description": "private 저장소 유지"
+        },
+        {
+          "id": "wiki/core-bases-plugin",
+          "name": "Core Bases Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": ".base 파일 동적 뷰"
+        },
+        {
+          "id": "wiki/properties-panel",
+          "name": "Properties Panel",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "YAML 시각 편집"
+        },
+        {
+          "id": "wiki/backlinks-pane",
+          "name": "Backlinks Pane",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "inbound/outbound 링크 시각화"
+        },
+        {
+          "id": "wiki/outline-pane",
+          "name": "Outline Pane",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "헤딩 네비게이션"
+        },
+        {
+          "id": "wiki/templater-plugin",
+          "name": "Templater Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "템플릿 자동 채우기"
+        },
+        {
+          "id": "wiki/obsidian-git-plugin",
+          "name": "Obsidian Git Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "자동 커밋"
+        },
+        {
+          "id": "wiki/calendar-plugin",
+          "name": "Calendar Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "사이드바 달력"
+        },
+        {
+          "id": "wiki/thino-plugin",
+          "name": "Thino Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "빠른 메모 캡처"
+        },
+        {
+          "id": "wiki/iconize-plugin",
+          "name": "Iconize Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "폴더 아이콘"
+        },
+        {
+          "id": "wiki/minimal-theme",
+          "name": "Minimal Theme",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "정보 밀집 표시"
+        },
+        {
+          "id": "wiki/dataview-plugin",
+          "name": "Dataview Plugin",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "legacy 쿼리 지원"
+        },
+        {
+          "id": "wiki/web-clipper-extension",
+          "name": "Web Clipper Extension",
+          "source_file": "skills/wiki/references/plugins.md",
+          "description": "브라우저 → .raw/ 전송"
+        },
+        {
+          "id": "wiki/bearer-token-authentication",
+          "name": "Bearer Token Authentication",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "API 인증"
+        },
+        {
+          "id": "wiki/file-read-via-rest",
+          "name": "File Read Via Rest",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "GET /vault/[path]"
+        },
+        {
+          "id": "wiki/file-create-replace",
+          "name": "File Create Replace",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "PUT /vault/[path]"
+        },
+        {
+          "id": "wiki/file-append-operation",
+          "name": "File Append Operation",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "POST /vault/[path]"
+        },
+        {
+          "id": "wiki/frontmatter-patching",
+          "name": "Frontmatter Patching",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "PATCH + Target-Type: frontmatter"
+        },
+        {
+          "id": "wiki/heading-based-append",
+          "name": "Heading Based Append",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "PATCH + Target-Type: heading"
+        },
+        {
+          "id": "wiki/simple-keyword-search",
+          "name": "Simple Keyword Search",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "/search/simple/"
+        },
+        {
+          "id": "wiki/dataview-query-execution",
+          "name": "Dataview Query Execution",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "DQL 쿼리 실행"
+        },
+        {
+          "id": "wiki/tag-listing",
+          "name": "Tag Listing",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "/tags/ 전체 태그"
+        },
+        {
+          "id": "wiki/folder-listing",
+          "name": "Folder Listing",
+          "source_file": "skills/wiki/references/rest-api.md",
+          "description": "/vault/[folder]/ 파일 목록"
+        },
+        {
+          "id": "wiki/local-rest-api-plugin",
+          "name": "Local Rest Api Plugin",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "127.0.0.1:27124 접근"
+        },
+        {
+          "id": "wiki/self-signed-certificate-handling",
+          "name": "Self Signed Certificate Handling",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "TLS 인증서 문제 해결"
+        },
+        {
+          "id": "wiki/node-tls-bypass",
+          "name": "Node Tls Bypass",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "localhost TLS 검증 우회"
+        },
+        {
+          "id": "wiki/mcp-obsidian-server",
+          "name": "Mcp Obsidian Server",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "REST API 기반 MCP"
+        },
+        {
+          "id": "wiki/mcpvault-filesystem",
+          "name": "Mcpvault Filesystem",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "플러그인 없이 디렉토리 직접 읽기"
+        },
+        {
+          "id": "wiki/direct-rest-api-curl",
+          "name": "Direct Rest Api Curl",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "MCP 없이 curl 호출"
+        },
+        {
+          "id": "wiki/obsidian-cli",
+          "name": "Obsidian Cli",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "v1.12+ 기본 CLI"
+        },
+        {
+          "id": "wiki/mcp-scope-configuration",
+          "name": "Mcp Scope Configuration",
+          "source_file": "skills/wiki/references/mcp-setup.md",
+          "description": "--scope user 전역 접근"
+        },
+        {
+          "id": "wiki/vault-bootstrap-command",
+          "name": "Vault Bootstrap Command",
+          "source_file": "commands/wiki.md",
+          "description": "설치 확인, vault 확인, MCP 확인"
+        },
+        {
+          "id": "wiki/one-question-setup",
+          "name": "One Question Setup",
+          "source_file": "commands/wiki.md",
+          "description": "한 질문으로 전체 구조 생성"
+        },
+        {
+          "id": "wiki/mode-selection-command",
+          "name": "Mode Selection Command",
+          "source_file": "skills/wiki/SKILL.md",
+          "description": "6가지 모드 자동 선택, vault 용도 질문 기반"
+        },
+        {
+          "id": "wiki/structure-scaffolding",
+          "name": "Structure Scaffolding",
+          "source_file": "commands/wiki.md",
+          "description": "폴더, 도메인, _index.md, 템플릿 생성"
+        },
+        {
+          "id": "wiki/visual-customization-setup",
+          "name": "Visual Customization Setup",
+          "source_file": "commands/wiki.md",
+          "description": "CSS snippet 생성/활성화"
+        },
+        {
+          "id": "wiki/vault-claude-md-creation",
+          "name": "Vault Claude Md Creation",
+          "source_file": "commands/wiki.md",
+          "description": "vault root에 conventions 기록"
+        },
+        {
+          "id": "wiki/git-initialization-command",
+          "name": "Git Initialization Command",
+          "source_file": "commands/wiki.md",
+          "description": "버전 관리 초기화"
+        },
+        {
+          "id": "wiki/existing-vault-detection",
+          "name": "Existing Vault Detection",
+          "source_file": "commands/wiki.md",
+          "description": "이미 설정된 vault 상태 보고"
+        }
+      ]
+    },
+    {
+      "id": "obsidian-markdown",
+      "name": "obsidian-markdown",
+      "blog_post_number": 2,
+      "source_files": [
+        "skills/obsidian-markdown/SKILL.md"
+      ],
+      "concepts": [
+        {
+          "id": "obsidian-markdown/wikilinks",
+          "name": "Wikilinks",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "[[Note Name]] 내부 링크"
+        },
+        {
+          "id": "obsidian-markdown/aliased-wikilinks",
+          "name": "Aliased Wikilinks",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "[[Note|Display]] 표시 텍스트"
+        },
+        {
+          "id": "obsidian-markdown/block-level-wikilinks",
+          "name": "Block Level Wikilinks",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "[[Note#^block-id]] 블록 링크"
+        },
+        {
+          "id": "obsidian-markdown/embeds",
+          "name": "Embeds",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "![[Note]] 인라인 표시"
+        },
+        {
+          "id": "obsidian-markdown/image-embeds-with-sizing",
+          "name": "Image Embeds With Sizing",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "![[image.png|300]] 너비 지정"
+        },
+        {
+          "id": "obsidian-markdown/callouts",
+          "name": "Callouts",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "> [!type] 알림 박스"
+        },
+        {
+          "id": "obsidian-markdown/collapsible-callouts",
+          "name": "Collapsible Callouts",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "-/+ 접기 제어"
+        },
+        {
+          "id": "obsidian-markdown/custom-callout-types",
+          "name": "Custom Callout Types",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "contradiction, gap 등 커스텀"
+        },
+        {
+          "id": "obsidian-markdown/yaml-frontmatter-properties",
+          "name": "Yaml Frontmatter Properties",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "평면 YAML 메타데이터"
+        },
+        {
+          "id": "obsidian-markdown/nested-tags",
+          "name": "Nested Tags",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "#parent/child 계층 태그"
+        },
+        {
+          "id": "obsidian-markdown/text-highlighting",
+          "name": "Text Highlighting",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "==text== 강조"
+        },
+        {
+          "id": "obsidian-markdown/inline-math",
+          "name": "Inline Math",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "$E=mc^2$ 인라인 수식"
+        },
+        {
+          "id": "obsidian-markdown/block-math",
+          "name": "Block Math",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "$$...$$ 블록 수식"
+        },
+        {
+          "id": "obsidian-markdown/mermaid-diagrams",
+          "name": "Mermaid Diagrams",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "그래프, 시퀀스 차트"
+        },
+        {
+          "id": "obsidian-markdown/footnotes",
+          "name": "Footnotes",
+          "source_file": "skills/obsidian-markdown/SKILL.md",
+          "description": "[^1] 각주"
+        }
+      ]
+    },
+    {
+      "id": "wiki-ingest",
+      "name": "wiki-ingest",
+      "blog_post_number": 3,
+      "source_files": [
+        "skills/wiki-ingest/SKILL.md",
+        "agents/wiki-ingest.md"
+      ],
+      "concepts": [
+        {
+          "id": "wiki-ingest/source-ingestion-workflow",
+          "name": "Source Ingestion Workflow",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "단일 소스 → 8-15 페이지 생성"
+        },
+        {
+          "id": "wiki-ingest/delta-tracking-via-manifest",
+          "name": "Delta Tracking Via Manifest",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": ".raw/.manifest.json 중복 방지"
+        },
+        {
+          "id": "wiki-ingest/hash-based-deduplication",
+          "name": "Hash Based Deduplication",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "md5sum/sha256sum 변경 감지"
+        },
+        {
+          "id": "wiki-ingest/url-ingestion",
+          "name": "Url Ingestion",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "URL 자동 fetch/clean/save/ingest"
+        },
+        {
+          "id": "wiki-ingest/image-vision-ingestion",
+          "name": "Image Vision Ingestion",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "이미지 OCR/개념/엔티티 추출"
+        },
+        {
+          "id": "wiki-ingest/single-source-ingest",
+          "name": "Single Source Ingest",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "파일 기반 entity/concept/domain 생성"
+        },
+        {
+          "id": "wiki-ingest/batch-ingest-mode",
+          "name": "Batch Ingest Mode",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "다중 소스 순차 처리 + 교차참조"
+        },
+        {
+          "id": "wiki-ingest/cross-referencing",
+          "name": "Cross Referencing",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "소스 간 연결 관계 식별"
+        },
+        {
+          "id": "wiki-ingest/contradiction-flagging",
+          "name": "Contradiction Flagging",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "[!contradiction] callout 충돌 표시"
+        },
+        {
+          "id": "wiki-ingest/context-window-discipline",
+          "name": "Context Window Discipline",
+          "source_file": "skills/wiki-ingest/SKILL.md",
+          "description": "hot.md 우선, 3-5페이지 토큰 관리"
+        },
+        {
+          "id": "wiki-ingest/parallel-batch-agent",
+          "name": "Parallel Batch Agent",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "여러 소스 동시 처리"
+        },
+        {
+          "id": "wiki-ingest/single-source-full-processing",
+          "name": "Single Source Full Processing",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "하나의 소스 끝까지 처리"
+        },
+        {
+          "id": "wiki-ingest/index-cross-reference-prevention",
+          "name": "Index Cross Reference Prevention",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "기존 페이지 중복 확인"
+        },
+        {
+          "id": "wiki-ingest/hot-cache-reading",
+          "name": "Hot Cache Reading",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "최근 문맥 파악"
+        },
+        {
+          "id": "wiki-ingest/source-summary-creation",
+          "name": "Source Summary Creation",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "wiki/sources/ 페이지 생성"
+        },
+        {
+          "id": "wiki-ingest/entity-page-management",
+          "name": "Entity Page Management",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "wiki/entities/ create/update"
+        },
+        {
+          "id": "wiki-ingest/concept-page-management",
+          "name": "Concept Page Management",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "wiki/concepts/ create/update"
+        },
+        {
+          "id": "wiki-ingest/domain-page-updates",
+          "name": "Domain Page Updates",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "관련 도메인 페이지 링크 추가"
+        },
+        {
+          "id": "wiki-ingest/domain-index-updates",
+          "name": "Domain Index Updates",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "_index.md 갱신"
+        },
+        {
+          "id": "wiki-ingest/contradiction-detection-and-flagging",
+          "name": "Contradiction Detection And Flagging",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "충돌 callout 추가"
+        },
+        {
+          "id": "wiki-ingest/non-modifying-constraints",
+          "name": "Non Modifying Constraints",
+          "source_file": "agents/wiki-ingest.md",
+          "description": ".raw/, index.md 등 수정 금지"
+        },
+        {
+          "id": "wiki-ingest/structured-report-output",
+          "name": "Structured Report Output",
+          "source_file": "agents/wiki-ingest.md",
+          "description": "Created/Updated/Contradictions 보고"
+        }
+      ]
+    },
+    {
+      "id": "wiki-query",
+      "name": "wiki-query",
+      "blog_post_number": 4,
+      "source_files": [
+        "skills/wiki-query/SKILL.md"
+      ],
+      "concepts": [
+        {
+          "id": "wiki-query/query-modes",
+          "name": "Query Modes",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "Quick/Standard/Deep 3가지 모드"
+        },
+        {
+          "id": "wiki-query/quick-mode-execution",
+          "name": "Quick Mode Execution",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "hot.md + index만 조회"
+        },
+        {
+          "id": "wiki-query/standard-query-workflow",
+          "name": "Standard Query Workflow",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "hot → index → pages → synthesize → file"
+        },
+        {
+          "id": "wiki-query/deep-mode-synthesis",
+          "name": "Deep Mode Synthesis",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "전체 위키 읽기 + 반드시 파일링"
+        },
+        {
+          "id": "wiki-query/token-budget-management",
+          "name": "Token Budget Management",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "hot ~500, index ~1000, 페이지당 ~300"
+        },
+        {
+          "id": "wiki-query/index-format-scanning",
+          "name": "Index Format Scanning",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "섹션 헤더로 빠른 검색"
+        },
+        {
+          "id": "wiki-query/domain-sub-index",
+          "name": "Domain Sub Index",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "_index.md 범위 좁은 조회"
+        },
+        {
+          "id": "wiki-query/answer-filing-back",
+          "name": "Answer Filing Back",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "wiki/questions/에 답변 저장"
+        },
+        {
+          "id": "wiki-query/answer-page-frontmatter",
+          "name": "Answer Page Frontmatter",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "type:question, answer_quality 필드"
+        },
+        {
+          "id": "wiki-query/gap-identification",
+          "name": "Gap Identification",
+          "source_file": "skills/wiki-query/SKILL.md",
+          "description": "부족한 부분 명시, 웹 검색 제안"
+        }
+      ]
+    },
+    {
+      "id": "wiki-lint",
+      "name": "wiki-lint",
+      "blog_post_number": 5,
+      "source_files": [
+        "skills/wiki-lint/SKILL.md",
+        "agents/wiki-lint.md"
+      ],
+      "concepts": [
+        {
+          "id": "wiki-lint/orphan-pages-detection",
+          "name": "Orphan Pages Detection",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "inbound 링크 없는 페이지"
+        },
+        {
+          "id": "wiki-lint/dead-links-detection",
+          "name": "Dead Links Detection",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "존재하지 않는 페이지 참조"
+        },
+        {
+          "id": "wiki-lint/stale-claims-flagging",
+          "name": "Stale Claims Flagging",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "구식 주장 식별"
+        },
+        {
+          "id": "wiki-lint/missing-pages-identification",
+          "name": "Missing Pages Identification",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "독립 페이지 없는 개념"
+        },
+        {
+          "id": "wiki-lint/cross-reference-gaps",
+          "name": "Cross Reference Gaps",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "링크 안 된 entity 언급"
+        },
+        {
+          "id": "wiki-lint/frontmatter-validation",
+          "name": "Frontmatter Validation",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "필수 필드 검증"
+        },
+        {
+          "id": "wiki-lint/empty-section-detection",
+          "name": "Empty Section Detection",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "내용 없는 섹션"
+        },
+        {
+          "id": "wiki-lint/stale-index-entries",
+          "name": "Stale Index Entries",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "삭제/이름변경 참조"
+        },
+        {
+          "id": "wiki-lint/naming-convention-enforcement",
+          "name": "Naming Convention Enforcement",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "Title Case, lowercase-dashes"
+        },
+        {
+          "id": "wiki-lint/writing-style-check",
+          "name": "Writing Style Check",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "선언적 현재형, 출처 인용"
+        },
+        {
+          "id": "wiki-lint/dataview-dashboard-creation",
+          "name": "Dataview Dashboard Creation",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "최근 활동, seed 페이지 쿼리"
+        },
+        {
+          "id": "wiki-lint/canvas-map-generation",
+          "name": "Canvas Map Generation",
+          "source_file": "skills/wiki-lint/SKILL.md",
+          "description": "도메인 관계 시각 canvas"
+        },
+        {
+          "id": "wiki-lint/comprehensive-wiki-health-check",
+          "name": "Comprehensive Wiki Health Check",
+          "source_file": "agents/wiki-lint.md",
+          "description": "전체 건강 검사"
+        },
+        {
+          "id": "wiki-lint/agent-frontmatter-validation",
+          "name": "Agent Frontmatter Validation",
+          "source_file": "agents/wiki-lint.md",
+          "description": "필수 필드 확인"
+        },
+        {
+          "id": "wiki-lint/wikilink-resolution-check",
+          "name": "Wikilink Resolution Check",
+          "source_file": "agents/wiki-lint.md",
+          "description": "실제 파일 가리키는지 검증"
+        },
+        {
+          "id": "wiki-lint/agent-empty-section-detection",
+          "name": "Agent Empty Section Detection",
+          "source_file": "agents/wiki-lint.md",
+          "description": "헤딩 아래 내용 확인"
+        },
+        {
+          "id": "wiki-lint/agent-orphan-page-identification",
+          "name": "Agent Orphan Page Identification",
+          "source_file": "agents/wiki-lint.md",
+          "description": "링크 없는 페이지"
+        },
+        {
+          "id": "wiki-lint/concept-gap-detection",
+          "name": "Concept Gap Detection",
+          "source_file": "agents/wiki-lint.md",
+          "description": "독립 페이지 없는 개념"
+        },
+        {
+          "id": "wiki-lint/unlinked-mention-detection",
+          "name": "Unlinked Mention Detection",
+          "source_file": "agents/wiki-lint.md",
+          "description": "텍스트만 있고 [[]] 없음"
+        },
+        {
+          "id": "wiki-lint/index-staleness-check",
+          "name": "Index Staleness Check",
+          "source_file": "agents/wiki-lint.md",
+          "description": "index.md 삭제 참조"
+        },
+        {
+          "id": "wiki-lint/stale-seed-pages",
+          "name": "Stale Seed Pages",
+          "source_file": "agents/wiki-lint.md",
+          "description": "30일+ seed 상태 페이지"
+        },
+        {
+          "id": "wiki-lint/structured-lint-report",
+          "name": "Structured Lint Report",
+          "source_file": "agents/wiki-lint.md",
+          "description": "Critical/Warnings/Suggestions 분류"
+        }
+      ]
+    },
+    {
+      "id": "save",
+      "name": "save",
+      "blog_post_number": 6,
+      "source_files": [
+        "skills/save/SKILL.md",
+        "commands/save.md"
+      ],
+      "concepts": [
+        {
+          "id": "save/conversation-filing",
+          "name": "Conversation Filing",
+          "source_file": "skills/save/SKILL.md",
+          "description": "대화에서 가치 있는 내용 저장"
+        },
+        {
+          "id": "save/note-type-decision-tree",
+          "name": "Note Type Decision Tree",
+          "source_file": "skills/save/SKILL.md",
+          "description": "synthesis/concept/source/decision/session 선택"
+        },
+        {
+          "id": "save/declarative-present-tense-style",
+          "name": "Declarative Present Tense Style",
+          "source_file": "skills/save/SKILL.md",
+          "description": "\"X는 Y한다\" 형식"
+        },
+        {
+          "id": "save/comprehensive-cold-reading",
+          "name": "Comprehensive Cold Reading",
+          "source_file": "skills/save/SKILL.md",
+          "description": "미래 세션에서 맥락 파악 가능"
+        },
+        {
+          "id": "save/automated-wikilinks",
+          "name": "Automated Wikilinks",
+          "source_file": "skills/save/SKILL.md",
+          "description": "언급된 개념/엔티티 자동 연결"
+        },
+        {
+          "id": "save/frontmatter-with-type-specific-fields",
+          "name": "Frontmatter With Type Specific Fields",
+          "source_file": "skills/save/SKILL.md",
+          "description": "타입별 추가 필드"
+        },
+        {
+          "id": "save/save-vs-skip-heuristics",
+          "name": "Save Vs Skip Heuristics",
+          "source_file": "skills/save/SKILL.md",
+          "description": "비자명 인사이트만 저장"
+        },
+        {
+          "id": "save/duplicate-prevention",
+          "name": "Duplicate Prevention",
+          "source_file": "skills/save/SKILL.md",
+          "description": "기존 페이지 중복 확인"
+        },
+        {
+          "id": "save/related-pages-linking",
+          "name": "Related Pages Linking",
+          "source_file": "skills/save/SKILL.md",
+          "description": "frontmatter related 필드 기록"
+        },
+        {
+          "id": "save/index-and-log-updates",
+          "name": "Index And Log Updates",
+          "source_file": "skills/save/SKILL.md",
+          "description": "index.md, log.md, hot.md 업데이트"
+        },
+        {
+          "id": "save/conversation-analysis",
+          "name": "Conversation Analysis",
+          "source_file": "commands/save.md",
+          "description": "가장 가치 있는 내용 식별"
+        },
+        {
+          "id": "save/name-specification-option",
+          "name": "Name Specification Option",
+          "source_file": "commands/save.md",
+          "description": "/save [name] 제목 지정"
+        },
+        {
+          "id": "save/session-summary-mode",
+          "name": "Session Summary Mode",
+          "source_file": "commands/save.md",
+          "description": "/save session 전체 세션"
+        },
+        {
+          "id": "save/type-explicit-specification",
+          "name": "Type Explicit Specification",
+          "source_file": "commands/save.md",
+          "description": "/save concept [name] 등"
+        },
+        {
+          "id": "save/save-duplicate-prevention-check",
+          "name": "Save Duplicate Prevention Check",
+          "source_file": "commands/save.md",
+          "description": "기존 페이지 확인"
+        },
+        {
+          "id": "save/vault-existence-check",
+          "name": "Vault Existence Check",
+          "source_file": "commands/save.md",
+          "description": "vault 없으면 /wiki 권고"
+        }
+      ]
+    },
+    {
+      "id": "defuddle",
+      "name": "defuddle",
+      "blog_post_number": 7,
+      "source_files": [
+        "skills/defuddle/SKILL.md"
+      ],
+      "concepts": [
+        {
+          "id": "defuddle/web-page-cleaner",
+          "name": "Web Page Cleaner",
+          "source_file": "skills/defuddle/SKILL.md",
+          "description": "광고/네비게이션 제거 → 정제 마크다운"
+        },
+        {
+          "id": "defuddle/token-reduction",
+          "name": "Token Reduction",
+          "source_file": "skills/defuddle/SKILL.md",
+          "description": "40-60% 토큰 절감"
+        },
+        {
+          "id": "defuddle/frontmatter-header",
+          "name": "Frontmatter Header",
+          "source_file": "skills/defuddle/SKILL.md",
+          "description": "source_url, fetched 메타데이터"
+        },
+        {
+          "id": "defuddle/integration-with-wiki-ingest",
+          "name": "Integration With Wiki Ingest",
+          "source_file": "skills/defuddle/SKILL.md",
+          "description": "URL 처리 전 자동 실행"
+        }
+      ]
+    },
+    {
+      "id": "autoresearch",
+      "name": "autoresearch",
+      "blog_post_number": 8,
+      "source_files": [
+        "skills/autoresearch/SKILL.md",
+        "skills/autoresearch/references/program.md",
+        "commands/autoresearch.md"
+      ],
+      "concepts": [
+        {
+          "id": "autoresearch/autonomous-research-loop",
+          "name": "Autonomous Research Loop",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "반복적 검색/페칭/합성 자동화"
+        },
+        {
+          "id": "autoresearch/three-round-search",
+          "name": "Three Round Search",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "광범위 → 갭 채우기 → 합성 검증"
+        },
+        {
+          "id": "autoresearch/topic-decomposition",
+          "name": "Topic Decomposition",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "3-5개 검색 각도로 분해"
+        },
+        {
+          "id": "autoresearch/source-summaries",
+          "name": "Source Summaries",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "wiki/sources/에 개별 소스 요약"
+        },
+        {
+          "id": "autoresearch/concept-extraction",
+          "name": "Concept Extraction",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "wiki/concepts/ 페이지 생성"
+        },
+        {
+          "id": "autoresearch/entity-tracking",
+          "name": "Entity Tracking",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "wiki/entities/ 페이지 생성"
+        },
+        {
+          "id": "autoresearch/synthesis-page",
+          "name": "Synthesis Page",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "Research: [Topic] 마스터 합성 페이지"
+        },
+        {
+          "id": "autoresearch/max-rounds-constraint",
+          "name": "Max Rounds Constraint",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "기본 3라운드 제한"
+        },
+        {
+          "id": "autoresearch/confidence-scoring",
+          "name": "Confidence Scoring",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": "high/medium/low 신뢰도"
+        },
+        {
+          "id": "autoresearch/source-preference-rules",
+          "name": "Source Preference Rules",
+          "source_file": "skills/autoresearch/SKILL.md",
+          "description": ".edu, 피어 리뷰 등 우선"
+        },
+        {
+          "id": "autoresearch/search-objectives",
+          "name": "Search Objectives",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "권위 출처, 엔티티 추출, 모순 기록"
+        },
+        {
+          "id": "autoresearch/preferred-sources",
+          "name": "Preferred Sources",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": ".edu, 공식 문서, 1차 출처"
+        },
+        {
+          "id": "autoresearch/confidence-scoring-system",
+          "name": "Confidence Scoring System",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "다중 출처/단일 출처/추측"
+        },
+        {
+          "id": "autoresearch/source-dating-for-claims",
+          "name": "Source Dating For Claims",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "출처 날짜 기록, 3년+ 구식 표시"
+        },
+        {
+          "id": "autoresearch/max-rounds-constraint-config",
+          "name": "Max Rounds Constraint Config",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "기본 3라운드"
+        },
+        {
+          "id": "autoresearch/max-pages-per-session",
+          "name": "Max Pages Per Session",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "최대 15페이지"
+        },
+        {
+          "id": "autoresearch/max-sources-per-round",
+          "name": "Max Sources Per Round",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "라운드당 최대 5소스"
+        },
+        {
+          "id": "autoresearch/declarative-present-tense-output",
+          "name": "Declarative Present Tense Output",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "hedging 없는 서술"
+        },
+        {
+          "id": "autoresearch/short-page-discipline",
+          "name": "Short Page Discipline",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "200행 이하, 초과 시 분할"
+        },
+        {
+          "id": "autoresearch/explicit-uncertainty-flagging",
+          "name": "Explicit Uncertainty Flagging",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "[!gap] callout"
+        },
+        {
+          "id": "autoresearch/domain-specific-rules",
+          "name": "Domain Specific Rules",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "AI/business/medical별 우선순위"
+        },
+        {
+          "id": "autoresearch/excluded-source-types",
+          "name": "Excluded Source Types",
+          "source_file": "skills/autoresearch/references/program.md",
+          "description": "Reddit, 소셜 미디어 등 제외"
+        },
+        {
+          "id": "autoresearch/autonomous-research-invocation",
+          "name": "Autonomous Research Invocation",
+          "source_file": "commands/autoresearch.md",
+          "description": "/autoresearch [topic]"
+        },
+        {
+          "id": "autoresearch/topic-input-prompt",
+          "name": "Topic Input Prompt",
+          "source_file": "commands/autoresearch.md",
+          "description": "topic 미지정 시 질문"
+        },
+        {
+          "id": "autoresearch/program-constraints-loading",
+          "name": "Program Constraints Loading",
+          "source_file": "commands/autoresearch.md",
+          "description": "program.md 로드"
+        },
+        {
+          "id": "autoresearch/vault-prerequisite-check",
+          "name": "Vault Prerequisite Check",
+          "source_file": "commands/autoresearch.md",
+          "description": "vault 없으면 /wiki 권고"
+        },
+        {
+          "id": "autoresearch/wiki-update-after-research",
+          "name": "Wiki Update After Research",
+          "source_file": "commands/autoresearch.md",
+          "description": "index/log/hot 업데이트"
+        },
+        {
+          "id": "autoresearch/result-reporting",
+          "name": "Result Reporting",
+          "source_file": "commands/autoresearch.md",
+          "description": "페이지 수/핵심 발견 보고"
+        }
+      ]
+    },
+    {
+      "id": "canvas",
+      "name": "canvas",
+      "blog_post_number": 9,
+      "source_files": [
+        "skills/canvas/SKILL.md",
+        "skills/canvas/references/canvas-spec.md",
+        "commands/canvas.md"
+      ],
+      "concepts": [
+        {
+          "id": "canvas/visual-reference-layer",
+          "name": "Visual Reference Layer",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "이미지/텍스트/PDF/노트 시각 배열"
+        },
+        {
+          "id": "canvas/canvas-json-format",
+          "name": "Canvas Json Format",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "nodes + edges JSON 구조"
+        },
+        {
+          "id": "canvas/default-canvas",
+          "name": "Default Canvas",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "wiki/canvases/main.canvas"
+        },
+        {
+          "id": "canvas/canvas-status-check",
+          "name": "Canvas Status Check",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "/canvas 현황 확인"
+        },
+        {
+          "id": "canvas/image-node-with-aspect-ratio",
+          "name": "Image Node With Aspect Ratio",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "가로세로 비율 자동 계산"
+        },
+        {
+          "id": "canvas/zone-based-organization",
+          "name": "Zone Based Organization",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "group 노드로 labeled 영역"
+        },
+        {
+          "id": "canvas/auto-positioning-algorithm",
+          "name": "Auto Positioning Algorithm",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "zone 내 위치 자동 계산"
+        },
+        {
+          "id": "canvas/text-nodes",
+          "name": "Text Nodes",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "마크다운 카드 렌더링"
+        },
+        {
+          "id": "canvas/pdf-nodes",
+          "name": "Pdf Nodes",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "첫 페이지 미리보기"
+        },
+        {
+          "id": "canvas/file-nodes",
+          "name": "File Nodes",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "vault 상대 경로 참조"
+        },
+        {
+          "id": "canvas/unique-id-generation",
+          "name": "Unique Id Generation",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "[type]-[slug]-[timestamp] 패턴"
+        },
+        {
+          "id": "canvas/session-image-log",
+          "name": "Session Image Log",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": ".recent-images.txt 기록"
+        },
+        {
+          "id": "canvas/banana-integration",
+          "name": "Banana Integration",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "/banana 생성 이미지 자동 추가"
+        },
+        {
+          "id": "canvas/json-canvas-open-standard",
+          "name": "Json Canvas Open Standard",
+          "source_file": "skills/canvas/SKILL.md",
+          "description": "jsoncanvas.org 준수"
+        },
+        {
+          "id": "canvas/canvas-json-structure",
+          "name": "Canvas Json Structure",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "nodes + edges 배열"
+        },
+        {
+          "id": "canvas/json-canvas-1-0-compliance",
+          "name": "Json Canvas 1 0 Compliance",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "spec/1.0 준수"
+        },
+        {
+          "id": "canvas/id-format-recommendations",
+          "name": "Id Format Recommendations",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "16자 hex 또는 descriptive slug"
+        },
+        {
+          "id": "canvas/coordinate-system",
+          "name": "Coordinate System",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "origin (0,0), x 우향, y 하향"
+        },
+        {
+          "id": "canvas/text-node-rendering",
+          "name": "Text Node Rendering",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "마크다운 카드 표시"
+        },
+        {
+          "id": "canvas/file-node-type",
+          "name": "File Node Type",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "이미지/PDF/마크다운 인라인 표시"
+        },
+        {
+          "id": "canvas/group-node-zone",
+          "name": "Group Node Zone",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "labeled 직사각형 영역"
+        },
+        {
+          "id": "canvas/group-background-image",
+          "name": "Group Background Image",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "backgroundStyle(cover/ratio/repeat)"
+        },
+        {
+          "id": "canvas/link-node",
+          "name": "Link Node",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "OG preview 웹 URL"
+        },
+        {
+          "id": "canvas/edge-definition",
+          "name": "Edge Definition",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "nodes 간 방향 연결"
+        },
+        {
+          "id": "canvas/asymmetric-edge-defaults",
+          "name": "Asymmetric Edge Defaults",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "fromEnd none, toEnd arrow"
+        },
+        {
+          "id": "canvas/edge-label",
+          "name": "Edge Label",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "관계 설명 텍스트"
+        },
+        {
+          "id": "canvas/color-palette",
+          "name": "Color Palette",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "6가지 표준 색상"
+        },
+        {
+          "id": "canvas/aspect-ratio-canvas-sizing",
+          "name": "Aspect Ratio Canvas Sizing",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "16:9 등 권장 크기"
+        },
+        {
+          "id": "canvas/auto-positioning-pseudocode",
+          "name": "Auto Positioning Pseudocode",
+          "source_file": "skills/canvas/references/canvas-spec.md",
+          "description": "zone 내 배치 알고리즘"
+        },
+        {
+          "id": "canvas/canvas-status-operation",
+          "name": "Canvas Status Operation",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas 현황"
+        },
+        {
+          "id": "canvas/canvas-creation-command",
+          "name": "Canvas Creation Command",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas new [name]"
+        },
+        {
+          "id": "canvas/image-adding",
+          "name": "Image Adding",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas add image"
+        },
+        {
+          "id": "canvas/text-card-adding",
+          "name": "Text Card Adding",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas add text"
+        },
+        {
+          "id": "canvas/pdf-document-adding",
+          "name": "Pdf Document Adding",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas add pdf"
+        },
+        {
+          "id": "canvas/wiki-page-adding",
+          "name": "Wiki Page Adding",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas add note"
+        },
+        {
+          "id": "canvas/zone-management",
+          "name": "Zone Management",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas zone [name] [color]"
+        },
+        {
+          "id": "canvas/canvas-listing",
+          "name": "Canvas Listing",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas list"
+        },
+        {
+          "id": "canvas/banana-integration-command",
+          "name": "Banana Integration Command",
+          "source_file": "commands/canvas.md",
+          "description": "/canvas from banana"
+        },
+        {
+          "id": "canvas/default-canvas-naming",
+          "name": "Default Canvas Naming",
+          "source_file": "commands/canvas.md",
+          "description": "main.canvas"
+        }
+      ]
+    },
+    {
+      "id": "obsidian-bases",
+      "name": "obsidian-bases",
+      "blog_post_number": 10,
+      "source_files": [
+        "skills/obsidian-bases/SKILL.md"
+      ],
+      "concepts": [
+        {
+          "id": "obsidian-bases/obsidian-bases",
+          "name": "Obsidian Bases",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "동적 테이블/카드/리스트/필터/수식/요약"
+        },
+        {
+          "id": "obsidian-bases/base-file-format",
+          "name": "Base File Format",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": ".base YAML 구조"
+        },
+        {
+          "id": "obsidian-bases/global-filters",
+          "name": "Global Filters",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "모든 view 적용 필터"
+        },
+        {
+          "id": "obsidian-bases/boolean-filter-logic",
+          "name": "Boolean Filter Logic",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "AND/OR/NOT 복합 필터"
+        },
+        {
+          "id": "obsidian-bases/filter-functions",
+          "name": "Filter Functions",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "hasTag(), inFolder(), hasLink()"
+        },
+        {
+          "id": "obsidian-bases/formula-properties",
+          "name": "Formula Properties",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "(now() - file.ctime).days.round(0)"
+        },
+        {
+          "id": "obsidian-bases/duration-type-handling",
+          "name": "Duration Type Handling",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "Duration .days 접근"
+        },
+        {
+          "id": "obsidian-bases/nullable-property-guards",
+          "name": "Nullable Property Guards",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "if(due_date, ..., \"\")"
+        },
+        {
+          "id": "obsidian-bases/table-view",
+          "name": "Table View",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "정렬/그룹화/제한"
+        },
+        {
+          "id": "obsidian-bases/cards-view",
+          "name": "Cards View",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "카드 갤러리"
+        },
+        {
+          "id": "obsidian-bases/list-view",
+          "name": "List View",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "간단한 리스트"
+        },
+        {
+          "id": "obsidian-bases/base-embedding",
+          "name": "Base Embedding",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "![[MyBase.base]] 임베드"
+        },
+        {
+          "id": "obsidian-bases/wiki-vault-templates",
+          "name": "Wiki Vault Templates",
+          "source_file": "skills/obsidian-bases/SKILL.md",
+          "description": "대시보드, 엔티티 인덱스 등"
+        }
+      ]
+    }
+  ]
+}

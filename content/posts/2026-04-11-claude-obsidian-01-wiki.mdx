@@ -1,0 +1,1092 @@
+---
+title: "claude-obsidian 스킬 뜯어보기 (1): wiki 오케스트레이터"
+description: "claude-obsidian 플러그인의 핵심 스킬인 wiki의 아키텍처, 6가지 모드, 프론트매터 스키마, CSS/Git/MCP 설정을 코드 레벨에서 분석한다."
+date: "2026-04-11"
+published: true
+tags: ["claude-obsidian", "obsidian", "claude-code", "wiki", "llm-wiki"]
+series: "claude-obsidian-skills"
+seriesOrder: 1
+---
+
+## 이 스킬이 하는 일
+
+`wiki`는 claude-obsidian 플러그인의 오케스트레이터다. Obsidian 볼트를 LLM 위키로 셋업하고, 사용자의 입력을 올바른 서브 스킬(`wiki-ingest`, `wiki-query`, `wiki-lint`, `save`, `autoresearch`, `canvas`)로 라우팅하며, 볼트의 구조 규약과 시각 설정까지 관장한다. 한 마디로, **위키의 뼈대를 세우고 교통정리를 하는 스킬**이다.
+
+이 글에서는 `wiki` 스킬을 구성하는 9개 파일을 하나씩 뜯어보기하며, 각 파일이 담당하는 개념을 코드 레벨에서 분석한다.
+
+## 파일 구조
+
+```text title="wiki 스킬 파일 트리"
+claude-obsidian/
+├── skills/wiki/
+│   ├── SKILL.md                     # 스킬 본체 — 아키텍처, 라우팅, 핫 캐시
+│   └── references/
+│       ├── modes.md                  # 6가지 볼트 모드 (A~F)
+│       ├── frontmatter.md            # YAML 프론트매터 스키마
+│       ├── css-snippets.md           # 시각 커스터마이징 CSS
+│       ├── git-setup.md              # Git 초기화 및 백업
+│       ├── plugins.md                # 코어 + 커뮤니티 플러그인
+│       ├── rest-api.md               # Local REST API 사용법
+│       └── mcp-setup.md             # MCP 서버 4가지 옵션
+└── commands/
+    └── wiki.md                       # /wiki 커맨드 — 부트스트랩 워크플로우
+```
+
+총 9개 파일, 93개 개념. 이 글에서 전부 다룬다.
+
+---
+
+## SKILL.md 뜯어보기
+
+SKILL.md는 위키 스킬의 본체다. 아키텍처 선언, 핫 캐시 규약, 오퍼레이션 라우팅 테이블, 스캐폴드 절차, CLAUDE.md 템플릿, 크로스 프로젝트 참조까지 — 위키의 "헌법"에 해당한다.
+
+### Knowledge Compounding
+
+SKILL.md의 첫 문단이 위키의 존재 이유를 선언한다.
+
+```markdown title="skills/wiki/SKILL.md"
+The wiki is the product. Chat is just the interface.
+
+The key difference from RAG: the wiki is a persistent artifact.
+Cross-references are already there. Contradictions have been flagged.
+Synthesis already reflects everything read.
+Knowledge compounds like interest.
+```
+
+RAG는 매번 검색하고 버린다. 위키는 인제스트할 때마다 교차 참조를 엮고, 모순을 플래그하고, 합성 결과를 갱신한다. **지식이 복리로 쌓인다**는 은유가 이 스킬 전체를 관통한다.
+
+### Three Layer Architecture
+
+볼트는 세 계층으로 나뉜다.
+
+```text title="skills/wiki/SKILL.md"
+vault/
+├── .raw/       # Layer 1: immutable source documents
+├── wiki/       # Layer 2: LLM-generated knowledge base
+└── CLAUDE.md   # Layer 3: schema and instructions (this plugin)
+```
+
+- **Layer 1 (`.raw/`)**: 원본 소스. 크롤 데이터, PDF, 트랜스크립트 등. Claude는 읽기만 하고 **절대 수정하지 않는다**.
+- **Layer 2 (`wiki/`)**: LLM이 생성한 지식 베이스. 소스 요약, 엔티티, 개념, 비교 문서 등이 여기 들어간다.
+- **Layer 3 (`CLAUDE.md`)**: 볼트의 스키마와 컨벤션. Claude가 이 볼트에서 어떻게 행동해야 하는지 기술한다.
+
+`.raw/`가 닷 프리픽스인 이유가 있다. Obsidian의 파일 탐색기와 그래프 뷰에서 숨겨지기 때문이다. 소스 문서가 그래프를 어지럽히지 않는다.
+
+### Standard Wiki Structure
+
+Layer 2의 표준 폴더 구조는 다음과 같다.
+
+```text title="skills/wiki/SKILL.md"
+wiki/
+├── index.md            # master catalog of all pages
+├── log.md              # chronological record of all operations
+├── hot.md              # hot cache: recent context summary (~500 words)
+├── overview.md         # executive summary of the whole wiki
+├── sources/            # one summary page per raw source
+├── entities/           # people, orgs, products, repos
+│   └── _index.md
+├── concepts/           # ideas, patterns, frameworks
+│   └── _index.md
+├── domains/            # top-level topic areas
+│   └── _index.md
+├── comparisons/        # side-by-side analyses
+├── questions/          # filed answers to user queries
+└── meta/               # dashboards, lint reports, conventions
+```
+
+`_index.md`는 각 하위 폴더의 서브 인덱스다. `index.md`가 전체 카탈로그라면, `_index.md`는 해당 도메인의 로컬 목차다. 이 구조 덕분에 Claude는 전체 위키를 크롤하지 않고도 필요한 영역만 빠르게 찾아갈 수 있다.
+
+### Hot Cache
+
+```yaml title="skills/wiki/SKILL.md — hot.md 포맷"
+---
+type: meta
+title: "Hot Cache"
+updated: YYYY-MM-DDTHH:MM:SS
+---
+
+# Recent Context
+
+## Last Updated
+YYYY-MM-DD. [what happened]
+
+## Key Recent Facts
+- [Most important recent takeaway]
+- [Second most important]
+
+## Recent Changes
+- Created: [[New Page 1]], [[New Page 2]]
+- Updated: [[Existing Page]] (added section on X)
+
+## Active Threads
+- User is currently researching [topic]
+```
+
+`wiki/hot.md`는 약 500단어의 최근 문맥 요약이다. 캐시라는 이름답게 **매번 완전히 덮어쓴다**. 저널이 아니라 스냅샷이다.
+
+### Persistent Context Update
+
+핫 캐시의 갱신 타이밍은 세 가지로 명시되어 있다.
+
+1. **매 인제스트 후** — 새 소스가 추가되면 최신 사실 반영
+2. **의미 있는 쿼리 교환 후** — 중요한 Q&A가 발생하면 Active Threads 갱신
+3. **세션 종료 시** — 다음 세션이 "어디까지 했지?"를 묻지 않도록
+
+이 세 시점을 지키면, 어떤 세션에서든 `hot.md` 하나만 읽으면 최근 맥락을 복원할 수 있다.
+
+### Operation Routing
+
+```markdown title="skills/wiki/SKILL.md — 라우팅 테이블"
+| User says                           | Operation    | Sub-skill      |
+|-------------------------------------|-------------|----------------|
+| "scaffold", "set up vault"          | SCAFFOLD    | this skill     |
+| "ingest [source]", "add this"       | INGEST      | wiki-ingest    |
+| "what do you know about X"          | QUERY       | wiki-query     |
+| "lint", "health check"              | LINT        | wiki-lint      |
+| "save this", "/save"                | SAVE        | save           |
+| "/autoresearch [topic]"             | AUTORESEARCH| autoresearch   |
+| "/canvas"                           | CANVAS      | canvas         |
+```
+
+wiki 스킬은 직접 처리하는 오퍼레이션이 SCAFFOLD 하나뿐이다. 나머지 6개는 전부 서브 스킬로 위임한다. 오케스트레이터라는 이름이 정확한 이유다.
+
+### Vault Scaffold
+
+SCAFFOLD는 10단계 절차로 구성된다.
+
+1. **모드 결정** — `references/modes.md`를 읽어 6가지 옵션 제시
+2. **한 질문** — "What is this vault for?"
+3. **폴더 구조 생성** — 모드에 맞는 `wiki/` 하위 구조
+4. **도메인 페이지 + `_index.md`** 생성
+5. **index.md, log.md, hot.md, overview.md** 생성
+6. **`_templates/`** 파일 생성
+7. **CSS 커스터마이징** — `vault-colors.css` 생성
+8. **CLAUDE.md 생성** — 볼트 루트에 컨벤션 기록
+9. **Git 초기화**
+10. **결과 제시** — "Want to adjust anything before we start?"
+
+질문 하나로 전체 구조를 자동 생성한다. 이것이 claude-obsidian의 UX 철학이다.
+
+### Wiki Mode Selection
+
+6가지 모드(A~F)는 `references/modes.md`에서 상세히 다루지만, 선택 자체는 SCAFFOLD의 1단계에서 일어난다. 사용자가 "내 SaaS 비즈니스를 추적하고 싶다"고 하면 Mode C(Business)가 선택되고, "논문 읽기 정리"라고 하면 Mode E(Research)가 선택된다.
+
+### CLAUDE.md Template
+
+스캐폴드가 볼트 루트에 생성하는 CLAUDE.md 템플릿의 구조:
+
+```markdown title="skills/wiki/SKILL.md — Vault CLAUDE.md Template"
+# [WIKI NAME]: LLM Wiki
+
+Mode: [MODE A/B/C/D/E/F]
+Purpose: [ONE SENTENCE]
+Owner: [NAME]
+Created: YYYY-MM-DD
+
+## Structure
+[PASTE THE FOLDER MAP FROM THE CHOSEN MODE]
+
+## Conventions
+- All notes use YAML frontmatter
+- Wikilinks use [[Note Name]] format
+- .raw/ contains source documents: never modify them
+- wiki/index.md is the master catalog
+- wiki/log.md is append-only: never edit past entries
+- New log entries go at the TOP of the file
+
+## Operations
+- Ingest: drop source in .raw/, say "ingest [filename]"
+- Query: ask any question
+- Lint: say "lint the wiki"
+- Archive: move cold sources to .archive/
+```
+
+이 파일은 **플러그인 디렉토리가 아니라 새로 만든 볼트의 루트**에 생성된다는 점이 중요하다. Claude가 이 볼트에서 어떻게 행동해야 하는지를 볼트 자체에 기록하는 것이다.
+
+### Cross-Project Referencing
+
+```markdown title="skills/wiki/SKILL.md — 다른 프로젝트의 CLAUDE.md에 추가"
+## Wiki Knowledge Base
+Path: ~/path/to/vault
+
+When you need context not already in this project:
+1. Read wiki/hot.md first (recent context, ~500 words)
+2. If not enough, read wiki/index.md (full catalog)
+3. If you need domain specifics, read wiki/[domain]/_index.md
+4. Only then read individual wiki pages
+```
+
+이것이 wiki의 진짜 킬러 기능이다. 볼트 하나를 만들어두면, **모든 Claude Code 프로젝트에서 참조할 수 있다**. 토큰 비용도 계산되어 있다: 핫 캐시 약 500토큰, 인덱스 약 1000토큰, 개별 페이지 100~300토큰. 대부분의 경우 핫 캐시만 읽으면 충분하다.
+
+---
+
+## modes.md 뜯어보기
+
+`references/modes.md`는 6가지 볼트 모드를 정의한다. 각 모드는 고유한 폴더 구조, 프론트매터 스키마, 핵심 위키 페이지를 포함한다.
+
+### Mode A: Website / Sitemap
+
+웹사이트 콘텐츠 매핑, SEO 감사, 콘텐츠 갭 분석용이다.
+
+```text title="skills/wiki/references/modes.md — Mode A 폴더 구조"
+wiki/
+├── pages/         # one note per URL
+├── structure/     # site architecture, nav hierarchy
+├── audits/        # content gaps, redirect needs
+├── keywords/      # keyword clusters
+└── entities/      # brand, authors, topic hubs
+```
+
+**Page Status Tracking** — Mode A의 고유 기능이다. 각 페이지 노트에 `status` 필드가 있어 `live`, `redirect`, `404`, `stub`, `no-index` 상태를 추적한다. SEO 감사에서 이 상태 분류가 핵심이다.
+
+```yaml title="skills/wiki/references/modes.md — Mode A 프론트매터"
+type: page
+url: "https://example.com/page-slug"
+status: live          # live | redirect | 404 | stub | no-index
+word_count: 0
+has_schema: false
+indexed: true
+internal_links_in: 0
+internal_links_out: 0
+last_crawled: YYYY-MM-DD
+```
+
+### Mode B: GitHub / Repository
+
+코드베이스 아키텍처 맵핑용이다.
+
+```text title="skills/wiki/references/modes.md — Mode B 폴더 구조"
+wiki/
+├── modules/       # one note per major module / package
+├── components/    # reusable UI or functional components
+├── decisions/     # Architecture Decision Records (ADRs)
+├── dependencies/  # external deps, versions, risk assessment
+└── flows/         # data flows, request paths, auth flows
+```
+
+**Module Dependency Tracking** — `depends_on`과 `used_by` 필드로 모듈 간 의존 관계를 양방향으로 기록한다.
+
+```yaml title="skills/wiki/references/modes.md — Mode B 프론트매터"
+type: module
+path: "src/auth/"
+status: active         # active | deprecated | experimental | planned
+language: typescript
+depends_on: []
+used_by: []
+```
+
+**Architecture Decision Records** — `decisions/` 폴더에 아키텍처 결정과 그 근거를 기록한다. "왜 이렇게 했는지"를 미래의 자신(또는 동료)에게 남기는 것이다.
+
+### Mode C: Business / Project
+
+프로젝트 관리, 경쟁 정보, 팀 지식베이스용이다.
+
+```text title="skills/wiki/references/modes.md — Mode C 폴더 구조"
+wiki/
+├── stakeholders/  # people, companies, decision-makers
+├── decisions/     # key decisions with rationale
+├── deliverables/  # milestones, outputs, status tracking
+├── intel/         # competitor analysis, market research
+└── comms/         # synthesized meeting notes
+```
+
+**Stakeholder Mapping** — `stakeholders/` 폴더에 의사결정권자별 역할, 영향도, 관계를 기록한다. `priority` 필드(1~5)로 중요도를 명시하고, `owner`, `due_date`로 추적한다.
+
+### Mode D: Personal / Second Brain
+
+개인 세컨드 브레인용이다.
+
+```text title="skills/wiki/references/modes.md — Mode D 폴더 구조"
+wiki/
+├── goals/         # personal and professional goals
+├── learning/      # concepts being mastered
+├── people/        # relationships, shared context
+├── areas/         # health, finances, career, creative
+└── resources/     # books, courses, tools
+```
+
+**Goal Tracking with Progress** — 목표마다 `progress: 0`(0~100 퍼센트), `target_date`, `priority` 필드가 있다. 단순 TODO가 아니라 진행률을 정량 추적한다.
+
+**Life Area Organization** — `area` 필드가 `health`, `career`, `finance`, `creative`, `relationships`, `growth`로 삶의 영역을 분류한다. 목표와 영역을 교차하면 "커리어 목표 중 완료율이 낮은 것" 같은 쿼리가 가능해진다.
+
+**Hot Cache for Personal Mode** — Mode D는 `_meta/hot-cache.md`를 별도로 명시한다. 세션 시작 시 "요즘 뭐 하고 있었지?"를 빠르게 파악하기 위해 현재 포커스 영역, 최근 성과, 열린 스레드를 기록한다.
+
+### Mode E: Research
+
+논문 추적, 개념 추출, 연구 합성용이다.
+
+```text title="skills/wiki/references/modes.md — Mode E 폴더 구조"
+wiki/
+├── papers/        # paper summaries with key claims
+├── concepts/      # extracted concepts, models, frameworks
+├── entities/      # people, organizations, methods, datasets
+├── thesis/        # evolving synthesis pages
+└── gaps/          # open questions, contradictions
+```
+
+**Paper Status Workflow** — 논문의 상태가 `raw` → `summarized` → `synthesized` → `superseded`로 진행한다. 처음 들어오면 `raw`, 요약하면 `summarized`, 다른 논문과 합성하면 `synthesized`, 새 논문에 의해 대체되면 `superseded`. 학술 연구의 생명주기를 그대로 반영한다.
+
+```yaml title="skills/wiki/references/modes.md — Mode E 프론트매터"
+type: paper
+status: summarized     # raw | summarized | synthesized | superseded
+year: 2024
+authors: []
+key_claim: ""
+methodology: ""
+contradicts: []
+supports: []
+```
+
+**Methodology Comparison** — `contradicts`와 `supports` 필드로 논문 간 찬반 관계를 명시적으로 기록한다. 나중에 `[[Methodology Comparison]]` 페이지에서 이 관계를 종합하면 분야의 합의 정도를 한눈에 파악할 수 있다.
+
+### Mode F: Book / Course
+
+책이나 강좌의 컴패니언 위키용이다.
+
+```text title="skills/wiki/references/modes.md — Mode F 폴더 구조"
+wiki/
+├── characters/    # characters, personas, experts
+├── themes/        # major themes with evidence
+├── concepts/      # domain-specific terms
+├── timeline/      # plot structure, curriculum sequence
+└── synthesis/     # your own takeaways
+```
+
+**Chapter Sequencing** — `timeline/` 폴더가 챕터 맵, 커리큘럼 순서, 플롯 구조를 담는다. `source_chapters`와 `first_appearance` 필드로 개념이 처음 등장하는 위치를 추적한다.
+
+```yaml title="skills/wiki/references/modes.md — Mode F 프론트매터"
+type: concept
+status: developing     # stub | developing | mature
+source_chapters: []
+first_appearance: ""
+```
+
+### Mode Combination
+
+모드는 혼합할 수 있다.
+
+```text title="skills/wiki/references/modes.md — 조합 예시"
+- "GitHub repo + research on the AI approach used"
+  → Mode B folders + Mode E papers/ folder
+- "My SaaS business + second brain"
+  → Mode C intel/ + Mode D goals/
+- "YouTube channel"
+  → Mode F (content as "book") + Mode E (research on topics)
+```
+
+규칙은 하나: **폴더 이름이 겹치지 않게 한다.** Mode B의 `decisions/`와 Mode C의 `decisions/`를 하나로 합치지 말고 각각 유지한다.
+
+---
+
+## frontmatter.md 뜯어보기
+
+`references/frontmatter.md`는 모든 위키 페이지의 YAML 프론트매터 규약을 정의한다.
+
+### Flat YAML Structure
+
+```markdown title="skills/wiki/references/frontmatter.md"
+Every wiki page starts with flat YAML frontmatter.
+No nested objects. Obsidian's Properties UI requires flat structure.
+```
+
+Obsidian의 Properties 패널은 중첩 객체를 렌더링하지 못한다. `author: { name: "...", url: "..." }` 같은 구조는 쓰지 않는다. 모든 필드는 **최상위 키-값 쌍**이어야 한다.
+
+### Universal Frontmatter Fields
+
+```yaml title="skills/wiki/references/frontmatter.md — 필수 필드"
+---
+type: <source|entity|concept|domain|comparison|question|overview|meta>
+title: "Human-Readable Title"
+created: 2026-04-07
+updated: 2026-04-07
+tags:
+  - <domain-tag>
+  - <type-tag>
+status: <seed|developing|mature|evergreen>
+related:
+  - "[[Other Page]]"
+sources:
+  - "[[.raw/articles/source-file.md]]"
+---
+```
+
+7개 필드가 모든 페이지에 예외 없이 들어간다. `type`, `title`, `created`, `updated`, `tags`, `status`, `related`, `sources`.
+
+### Status Lifecycle
+
+```text title="skills/wiki/references/frontmatter.md — status 진행"
+seed → developing → mature → evergreen
+```
+
+- **seed**: 존재하지만 내용이 거의 없다
+- **developing**: 실질적인 콘텐츠가 있지만 아직 불완전하다
+- **mature**: 포괄적이고 잘 링크되어 있다
+- **evergreen**: 업데이트가 거의 필요 없는 최종 상태
+
+`wiki-lint` 스킬이 이 상태를 기반으로 "seed인데 30일 넘은 페이지"를 찾아 경고한다.
+
+### Source Type Taxonomy
+
+`source` 타입 페이지에 추가되는 `source_type` 필드:
+
+```yaml title="skills/wiki/references/frontmatter.md"
+source_type: article    # article | video | podcast | paper | book | transcript | data
+author: ""
+date_published: YYYY-MM-DD
+url: ""
+```
+
+7가지 소스 유형이다. `data`는 CSV, JSON 같은 구조화 데이터를 위한 유형이다.
+
+### Confidence Levels
+
+```yaml title="skills/wiki/references/frontmatter.md"
+confidence: high        # high | medium | low
+key_claims:
+  - "First key claim from this source"
+```
+
+소스의 신뢰도를 `high`, `medium`, `low`로 표시한다. 위키백과를 그대로 가져온 것과 1차 연구 논문은 신뢰도가 다르다. `key_claims`와 함께 쓰면 "이 주장은 medium 신뢰도 소스에서 왔다"는 추적이 가능해진다.
+
+### Entity Type Classification
+
+```yaml title="skills/wiki/references/frontmatter.md"
+entity_type: person     # person | organization | product | repository | place
+role: ""
+first_mentioned: "[[Source Title]]"
+```
+
+5가지 엔티티 유형. `first_mentioned`가 이 엔티티가 처음 언급된 소스를 가리킨다. 출처 추적의 기본 단위다.
+
+### Concept Complexity Levels
+
+```yaml title="skills/wiki/references/frontmatter.md"
+complexity: intermediate  # basic | intermediate | advanced
+domain: ""
+aliases:
+  - "alternative name"
+```
+
+개념의 난이도를 3단계로 분류한다. `aliases`는 같은 개념의 다른 이름(약어, 동의어)을 등록한다. Obsidian에서 별칭 검색이 가능해진다.
+
+### Comparison Page Schema
+
+```yaml title="skills/wiki/references/frontmatter.md"
+subjects:
+  - "[[Thing A]]"
+  - "[[Thing B]]"
+dimensions:
+  - "performance"
+  - "cost"
+  - "ease of use"
+verdict: "One-line conclusion."
+```
+
+비교 페이지는 `subjects`(비교 대상), `dimensions`(비교 기준), `verdict`(결론)라는 구조화된 스키마를 쓴다. "A vs B" 문서를 매번 자유 형식으로 쓰는 대신, **비교의 뼈대를 강제한다**.
+
+### Answer Quality Rating
+
+```yaml title="skills/wiki/references/frontmatter.md"
+question: "The original query as asked."
+answer_quality: solid   # draft | solid | definitive
+```
+
+`question` 타입 페이지의 고유 필드. `draft`는 임시 답변, `solid`는 충분히 검증된 답변, `definitive`는 더 이상 수정이 필요 없는 최종 답변이다.
+
+### Domain Taxonomy
+
+```yaml title="skills/wiki/references/frontmatter.md"
+subdomain_of: ""        # leave empty for top-level domains
+page_count: 0
+```
+
+`domain` 타입 페이지는 `subdomain_of`로 도메인 계층을 표현한다. 비워두면 최상위 도메인이다. `page_count`는 해당 도메인에 속한 페이지 수를 추적한다.
+
+### YAML Date Format / Quoted Wikilinks in YAML
+
+프론트매터의 두 가지 하드 규칙:
+
+```markdown title="skills/wiki/references/frontmatter.md — Rules"
+1. Dates as YYYY-MM-DD strings, not ISO datetime.
+2. Wikilinks in YAML fields must be quoted: "[[Page Name]]".
+```
+
+날짜는 `YYYY-MM-DD` 문자열만 쓴다. ISO datetime(`2026-04-07T12:00:00`)은 안 된다. 위키링크는 YAML 안에서 반드시 따옴표로 감싼다. `related: - [[Page]]`는 YAML 파싱 에러를 일으킨다. `related: - "[[Page]]"`가 올바르다.
+
+---
+
+## css-snippets.md 뜯어보기
+
+`references/css-snippets.md`는 볼트의 시각 레이어를 정의한다. 스캐폴드 시 `.obsidian/snippets/vault-colors.css`로 생성된다.
+
+### CSS Snippet System
+
+```css title="skills/wiki/references/css-snippets.md — CSS 변수 정의"
+:root {
+  --wiki-1: #4fc1ff;   /* domains — 파랑 */
+  --wiki-2: #c586c0;   /* entities — 보라 */
+  --wiki-3: #dcdcaa;   /* concepts — 노랑 */
+  --wiki-4: #ce9178;   /* sources — 주황 */
+  --wiki-5: #6a9955;   /* questions — 초록 */
+  --wiki-6: #d16969;   /* comparisons — 빨강 */
+  --wiki-7: #569cd6;   /* meta — 파랑 */
+}
+```
+
+CSS 커스텀 속성(변수)으로 색상 팔레트를 정의하고, 이 변수를 폴더 색상과 커스텀 콜아웃에서 재사용한다. 색을 바꾸고 싶으면 `:root` 블록만 수정하면 된다.
+
+### Folder Color Coding
+
+```css title="skills/wiki/references/css-snippets.md — 폴더 색상"
+.nav-folder-title[data-path^="wiki/domains"]     { color: var(--wiki-1); }
+.nav-folder-title[data-path^="wiki/entities"]    { color: var(--wiki-2); }
+.nav-folder-title[data-path^="wiki/concepts"]    { color: var(--wiki-3); }
+.nav-folder-title[data-path^="wiki/sources"]     { color: var(--wiki-4); }
+.nav-folder-title[data-path^="wiki/questions"]   { color: var(--wiki-5); }
+.nav-folder-title[data-path^="wiki/comparisons"] { color: var(--wiki-6); }
+.nav-folder-title[data-path^="wiki/meta"]        { color: var(--wiki-7); }
+.nav-folder-title[data-path=".raw"]              { color: #808080; opacity: 0.6; }
+```
+
+`data-path` 속성 선택자로 폴더별 색상을 지정한다. `.raw/`는 회색 + 60% 투명도로 시각적으로 "이건 건드리지 마세요"를 표현한다. 파일 탐색기에서 폴더 타입을 색으로 즉시 구분할 수 있다.
+
+### Custom Callout Styling
+
+Obsidian의 기본 콜아웃(`note`, `tip`, `warning` 등) 외에 4개의 위키 전용 커스텀 콜아웃을 정의한다.
+
+```css title="skills/wiki/references/css-snippets.md — 커스텀 콜아웃"
+.callout[data-callout='contradiction'] {
+  --callout-color: 209, 105, 105;
+  --callout-icon: lucide-alert-triangle;
+}
+.callout[data-callout='gap'] {
+  --callout-color: 220, 220, 170;
+  --callout-icon: lucide-help-circle;
+}
+.callout[data-callout='key-insight'] {
+  --callout-color: 79, 193, 255;
+  --callout-icon: lucide-lightbulb;
+}
+.callout[data-callout='stale'] {
+  --callout-color: 128, 128, 128;
+  --callout-icon: lucide-clock;
+}
+```
+
+### Contradiction Callout
+
+```markdown title="사용 예시"
+> [!contradiction] 출처 간 충돌
+> [[Page A]] claims X. [[Page B]] says Y. Needs resolution.
+```
+
+**해소 가능한 충돌**을 표시한다. 일반 `[!warning]`과 다른 점은, 이것이 **두 위키 페이지 간의 구체적인 모순**이라는 것이다. `wiki-lint`가 이 콜아웃을 스캔해서 미해결 모순 목록을 생성한다.
+
+### Gap Callout
+
+```markdown title="사용 예시"
+> [!gap] 소스 부족
+> This topic has no source yet. Consider finding one.
+```
+
+**누락된 소스**를 표시한다. `[!question]`과의 차이: gap은 "알고는 있지만 근거가 없다"는 **실행 가능한 개선점**이다.
+
+### Key Insight Callout
+
+```markdown title="사용 예시"
+> [!key-insight] 핵심 인사이트
+> The most important takeaway from this section.
+```
+
+섹션에서 **가장 중요한 단일 포인트**를 강조한다. `[!tip]`이 일반적인 조언이라면, `key-insight`는 "이것만 기억하라"는 의미다. 남발하면 의미가 희석되므로 절제해서 사용한다.
+
+### Stale Callout
+
+```markdown title="사용 예시"
+> [!stale] 오래된 주장
+> This claim may be outdated. Source was from 2022.
+```
+
+**시간 기반 감쇠**를 표시한다. 기본 콜아웃에는 이에 대응하는 것이 없다. 소스가 오래되었을 때 주장의 현재성에 의문을 제기하는 용도다.
+
+### Graph View Groups
+
+그래프 뷰에서도 폴더별 색상을 적용한다.
+
+```text title="skills/wiki/references/css-snippets.md — Graph View 설정"
+| Query                    | Color               |
+|--------------------------|---------------------|
+| path:wiki/domains        | Blue (#4fc1ff)      |
+| path:wiki/entities       | Purple (#c586c0)    |
+| path:wiki/concepts       | Yellow (#dcdcaa)    |
+| path:wiki/sources        | Orange (#ce9178)    |
+| path:wiki/questions      | Green (#6a9955)     |
+| path:.raw                | Gray (dimmed)       |
+```
+
+CSS 스니펫과 달리 Graph View Groups는 프로그래밍 방식으로 적용할 수 없다. 사용자에게 수동 설정 방법을 안내해야 한다(Graph View 설정 아이콘 클릭 후 그룹 추가).
+
+### Minimal Theme Integration
+
+```markdown title="skills/wiki/references/css-snippets.md"
+The color scheme looks best with the Minimal theme.
+Install via Settings → Appearance → Manage → search "Minimal".
+```
+
+`vault-colors.css`의 색상 팔레트는 Minimal 테마의 다크 모드에 최적화되어 있다. 다른 테마에서도 동작하지만, Minimal과 함께 쓸 때 정보 밀집도와 가독성이 가장 좋다.
+
+---
+
+## git-setup.md 뜯어보기
+
+`references/git-setup.md`는 볼트의 버전 관리를 설정한다.
+
+### Vault Git Initialization
+
+```bash title="skills/wiki/references/git-setup.md"
+cd "$VAULT_PATH"
+git init
+git add -A
+git commit -m "Initial vault scaffold"
+```
+
+스캐폴드의 9단계에서 실행된다. 첫 커밋에 전체 구조가 담기므로, 이후 어떤 변경이 있었는지 추적할 수 있다.
+
+### Workspace Exclusion
+
+```text title="skills/wiki/references/git-setup.md — .gitignore"
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+```
+
+`workspace.json`은 Obsidian에서 패널을 이동할 때마다 변경된다. Git diff를 오염시키는 주범이므로 반드시 제외한다.
+
+### Plugin Data Exclusion
+
+```text title="skills/wiki/references/git-setup.md — .gitignore 계속"
+.smart-connections/
+.obsidian-git-data
+.trash/
+.DS_Store
+```
+
+플러그인이 생성하는 런타임 데이터도 제외한다. `.smart-connections/`는 Smart Connections 플러그인의 벡터 인덱스, `.obsidian-git-data`는 Obsidian Git 플러그인의 내부 상태다. 이런 파일은 환경마다 재생성되므로 버전 관리할 이유가 없다.
+
+### Obsidian Git Auto Backup
+
+```text title="skills/wiki/references/git-setup.md — 플러그인 설정"
+Auto backup interval: 15 minutes
+Auto backup after file change: on
+Push on backup: on (if you have a remote)
+Commit message: vault: auto backup {{date}}
+```
+
+Obsidian Git 플러그인을 설치하면 15분 간격으로 자동 커밋이 실행된다. 사용자가 커밋을 의식하지 않아도 된다.
+
+### Background Git Workflow
+
+자동 백업의 핵심은 **백그라운드에서 조용히 돌아간다**는 것이다. 파일이 변경되면 자동 커밋, 리모트가 있으면 자동 푸시. 사용자는 노트 작성에만 집중하고, 버전 이력은 알아서 쌓인다.
+
+### Remote GitHub Integration
+
+```bash title="skills/wiki/references/git-setup.md"
+git remote add origin https://github.com/yourname/your-vault
+git push -u origin main
+```
+
+GitHub에 리모트를 연결하면 Obsidian Git 플러그인이 백업할 때마다 자동으로 푸시한다.
+
+### Private Vault Repository
+
+```markdown title="skills/wiki/references/git-setup.md"
+Keep the repo private if the vault contains personal notes.
+```
+
+볼트에 개인 노트, 미팅 기록, 비즈니스 인텔리전스가 들어갈 수 있으므로 리포지토리는 반드시 private으로 유지한다.
+
+---
+
+## plugins.md 뜯어보기
+
+`references/plugins.md`는 코어 플러그인 4개, 커뮤니티 플러그인 7개, 웹 클리퍼 확장까지 정의한다.
+
+### Core Plugins (4개)
+
+#### Core Bases Plugin
+
+```markdown title="skills/wiki/references/plugins.md"
+Bases: Native database-like views for .base files.
+Powers wiki/meta/dashboard.base. Available since Obsidian v1.9.10.
+Replaces Dataview for most wiki use cases.
+```
+
+Obsidian v1.9.10(2025년 8월)부터 추가된 네이티브 플러그인이다. `.base` 파일로 프론트매터 기반 동적 뷰를 만든다. Dataview의 DQL 쿼리 없이도 테이블, 카드 뷰, 필터, 정렬이 가능하다. wiki의 기본 대시보드(`dashboard.base`)가 이것을 사용한다.
+
+#### Properties Panel
+
+프론트매터를 시각적으로 편집하는 패널이다. YAML을 직접 편집하지 않아도 필드 값을 클릭으로 변경할 수 있다. 항상 활성화 상태로 유지한다.
+
+#### Backlinks Pane
+
+인바운드(들어오는), 아웃바운드(나가는) 링크를 패널에서 보여준다. 위키에서 교차 참조를 확인하는 가장 빠른 방법이다.
+
+#### Outline Pane
+
+문서의 헤딩 구조를 사이드바에 트리로 보여준다. 긴 위키 페이지를 탐색할 때 필수적이다.
+
+### Community Plugins (7개)
+
+#### Templater Plugin
+
+```markdown title="skills/wiki/references/plugins.md"
+Templater: Auto-populate frontmatter on note creation from _templates/.
+```
+
+노트를 생성할 때 `_templates/` 폴더의 템플릿을 자동 적용한다. 스캐폴드가 생성하는 `_templates/`의 파일들이 이 플러그인을 통해 동작한다.
+
+#### Obsidian Git Plugin
+
+앞서 `git-setup.md`에서 다룬 자동 커밋 플러그인이다. 15분 간격 자동 백업의 실행 주체.
+
+#### Calendar Plugin
+
+```markdown title="skills/wiki/references/plugins.md"
+Calendar: Right-sidebar calendar with word count, task, and link indicators.
+Pre-installed in this vault via .obsidian/plugins/calendar/.
+```
+
+오른쪽 사이드바에 달력 위젯을 표시한다. **사전 설치되어 있다** — `.obsidian/plugins/calendar/`에 이미 포함되어 있으므로 별도 다운로드가 필요 없다. 활성화만 하면 된다.
+
+#### Thino Plugin
+
+```markdown title="skills/wiki/references/plugins.md"
+Thino: Quick memo capture panel in right sidebar.
+Pre-installed via .obsidian/plugins/thino/.
+```
+
+빠른 메모 캡처 패널이다. Calendar와 마찬가지로 사전 설치되어 있다.
+
+#### Iconize Plugin
+
+폴더에 시각적 아이콘을 붙인다. CSS 색상 코딩과 함께 쓰면 파일 탐색기의 가독성이 한층 올라간다.
+
+#### Minimal Theme
+
+```markdown title="skills/wiki/references/plugins.md"
+Minimal Theme: Best dark theme for dense information display.
+```
+
+정보 밀집 표시에 최적화된 다크 테마다. `css-snippets.md`의 색상 팔레트와 함께 쓰도록 설계되었다.
+
+#### Dataview Plugin
+
+```markdown title="skills/wiki/references/plugins.md"
+Dataview (optional/legacy): Only needed if you're on Obsidian < 1.9.10
+or want to use the legacy dashboard.md queries.
+The primary dashboard now uses Bases.
+```
+
+Bases 플러그인이 등장하면서 레거시로 분류되었다. v1.9.10 이전 버전이거나 기존 DQL 쿼리를 유지해야 할 때만 설치한다.
+
+### Web Clipper Extension
+
+```markdown title="skills/wiki/references/plugins.md"
+The Obsidian Web Clipper browser extension converts
+web articles to markdown and sends them to .raw/ in one click.
+Set the default folder to .raw/ in the extension settings.
+```
+
+브라우저 확장으로, 웹 페이지를 마크다운으로 변환해서 `.raw/` 폴더에 직접 전송한다. Chrome, Firefox, Safari 지원. 인제스트 파이프라인의 입구 역할을 한다.
+
+---
+
+## rest-api.md 뜯어보기
+
+`references/rest-api.md`는 MCP 없이 Local REST API 플러그인으로 볼트를 조작하는 방법을 정리한다.
+
+### Bearer Token Authentication
+
+```bash title="skills/wiki/references/rest-api.md"
+API="https://127.0.0.1:27124"
+KEY="your-api-key-here"
+```
+
+모든 요청에 `Authorization: Bearer $KEY` 헤더가 필요하다. API 키는 Obsidian의 Local REST API 플러그인 설정에서 복사한다.
+
+### File Read via REST
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk \
+  -H "Authorization: Bearer $KEY" \
+  "$API/vault/wiki/index.md"
+```
+
+`GET /vault/[path]`로 파일 내용을 읽는다. `-sk` 플래그는 self-signed 인증서를 허용하는 옵션이다.
+
+### File Create/Replace
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk -X PUT \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: text/markdown" \
+  --data-binary @local-file.md \
+  "$API/vault/wiki/entities/Name.md"
+```
+
+`PUT /vault/[path]`로 파일을 생성하거나 덮어쓴다. 이미 존재하면 교체, 없으면 생성이다.
+
+### File Append Operation
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk -X POST \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: text/markdown" \
+  --data "- New log entry" \
+  "$API/vault/wiki/log.md"
+```
+
+`POST /vault/[path]`로 파일 끝에 내용을 추가한다. `log.md`에 새 엔트리를 덧붙일 때 적합하다.
+
+### Frontmatter Patching
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk -X PATCH \
+  -H "Authorization: Bearer $KEY" \
+  -H "Operation: replace" \
+  -H "Target-Type: frontmatter" \
+  -H "Target: status" \
+  -H "Content-Type: application/json" \
+  --data '"mature"' \
+  "$API/vault/wiki/concepts/Name.md"
+```
+
+`PATCH` + `Target-Type: frontmatter`로 프론트매터의 특정 필드만 수정한다. 파일 전체를 덮어쓰지 않고 `status`만 `mature`로 바꾸는 식이다. 위키 페이지의 상태를 프로그래밍 방식으로 진행시킬 때 핵심 API다.
+
+### Heading-Based Append
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk -X PATCH \
+  -H "Authorization: Bearer $KEY" \
+  -H "Operation: append" \
+  -H "Target-Type: heading" \
+  -H "Target: Connections" \
+  -H "Content-Type: text/markdown" \
+  --data "- [[New Page]]" \
+  "$API/vault/wiki/entities/Name.md"
+```
+
+`PATCH` + `Target-Type: heading`으로 특정 헤딩 아래에 내용을 추가한다. "Connections" 섹션에 새 링크를 추가하는 예시다. 파일 구조를 파악하지 않고도 원하는 위치에 정확히 삽입할 수 있다.
+
+### Simple Keyword Search
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk -X POST \
+  -H "Authorization: Bearer $KEY" \
+  "$API/search/simple/?query=machine+learning"
+```
+
+`POST /search/simple/`로 키워드 기반 전문 검색을 실행한다.
+
+### Dataview Query Execution
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk -X POST \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/vnd.olrapi.dataview.dql+txt" \
+  --data 'TABLE status FROM "wiki" WHERE status = "seed"' \
+  "$API/search/"
+```
+
+REST API를 통해 Dataview DQL 쿼리를 실행할 수 있다. Content-Type이 `application/vnd.olrapi.dataview.dql+txt`인 점에 주의한다. seed 상태인 페이지를 찾거나, 특정 태그의 페이지를 테이블로 뽑을 때 유용하다.
+
+### Tag Listing
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk \
+  -H "Authorization: Bearer $KEY" \
+  "$API/tags/"
+```
+
+`GET /tags/`로 볼트의 전체 태그 목록을 가져온다.
+
+### Folder Listing
+
+```bash title="skills/wiki/references/rest-api.md"
+curl -sk \
+  -H "Authorization: Bearer $KEY" \
+  "$API/vault/wiki/entities/"
+```
+
+`GET /vault/[folder]/`로 폴더 내 파일 목록을 가져온다. 슬래시로 끝나면 폴더 리스팅, 안 끝나면 파일 읽기다.
+
+---
+
+## mcp-setup.md 뜯어보기
+
+`references/mcp-setup.md`는 Claude가 Obsidian 볼트를 직접 읽고 쓸 수 있게 하는 4가지 MCP 연결 옵션을 제공한다.
+
+### Local REST API Plugin
+
+```markdown title="skills/wiki/references/mcp-setup.md"
+The plugin runs on https://127.0.0.1:27124 with a self-signed certificate.
+```
+
+Option A와 Option C의 전제 조건이다. Obsidian의 Community Plugins에서 "Local REST API"를 설치하면 `https://127.0.0.1:27124`에 REST 서버가 뜬다.
+
+### Self-Signed Certificate Handling
+
+Local REST API 플러그인은 self-signed 인증서를 사용한다. 브라우저에서 접근하면 "안전하지 않음" 경고가 뜨고, curl에서는 `-k` 플래그가 필요하다.
+
+### Node TLS Bypass
+
+```json title="skills/wiki/references/mcp-setup.md — Option A 환경변수"
+{
+  "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+}
+```
+
+Option A(mcp-obsidian)를 사용할 때 self-signed 인증서 문제를 우회하는 환경 변수다. **프로세스 전체의 TLS 검증을 비활성화**하므로 localhost 전용으로만 사용해야 한다. 보안이 걱정된다면 Option B(파일시스템 기반)나 Option D(CLI)를 쓰는 것이 낫다.
+
+### Option A: mcp-obsidian Server
+
+```bash title="skills/wiki/references/mcp-setup.md"
+claude mcp add-json obsidian-vault '{
+  "type": "stdio",
+  "command": "uvx",
+  "args": ["mcp-obsidian"],
+  "env": {
+    "OBSIDIAN_API_KEY": "<YOUR_KEY>",
+    "OBSIDIAN_HOST": "127.0.0.1",
+    "OBSIDIAN_PORT": "27124",
+    "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+  }
+}' --scope user
+```
+
+MarkusPfundstein의 mcp-obsidian을 사용하는 REST API 기반 옵션이다. 노트 읽기/쓰기, 검색, 프론트매터 패칭, 헤딩 아래 추가 등의 기능을 제공한다.
+
+### Option B: MCPVault Filesystem
+
+```bash title="skills/wiki/references/mcp-setup.md"
+claude mcp add-json obsidian-vault '{
+  "type": "stdio",
+  "command": "npx",
+  "args": ["-y", "@bitbonsai/mcpvault@latest", "/absolute/path/to/your/vault"]
+}' --scope user
+```
+
+Obsidian 플러그인 없이 볼트 디렉토리를 직접 읽는다. BM25 기반 `search_notes`, `read_note`, `create_note`, `update_note`, `get_frontmatter`, `update_frontmatter`, `list_all_tags`, `read_multiple_notes` 등 8개 도구를 제공한다. TLS 우회가 필요 없다는 것이 장점이다.
+
+### Option C: Direct REST API via curl
+
+MCP 서버 없이 bash에서 curl로 직접 호출한다. `rest-api.md`의 명령어를 그대로 사용한다. 가장 단순하지만, 세션마다 API 키를 설정해야 한다.
+
+### Option D: Obsidian CLI
+
+```bash title="skills/wiki/references/mcp-setup.md"
+# Read a note
+obsidian-cli read /path/to/vault wiki/index.md
+
+# Create or update a note
+obsidian-cli write /path/to/vault wiki/new-note.md < content.md
+
+# Search notes by content
+obsidian-cli search /path/to/vault "query term"
+```
+
+Obsidian v1.12(2026)부터 제공되는 네이티브 CLI다. **REST API 플러그인 불필요, MCP 서버 프로세스 불필요, TLS 인증서 우회 불필요**. Claude의 Bash 도구로 직접 호출한다. 문서에서 가장 강력히 권장하는 옵션이다.
+
+### MCP Scope Configuration
+
+```markdown title="skills/wiki/references/mcp-setup.md"
+Both MCP options use --scope user so the vault is available
+across all Claude Code projects.
+```
+
+`--scope user`를 쓰면 MCP 서버가 특정 프로젝트가 아닌 사용자 전역에 등록된다. 어떤 Claude Code 프로젝트에서든 이 볼트에 접근할 수 있게 된다. Cross-Project Referencing과 시너지를 이루는 설정이다.
+
+---
+
+## commands/wiki.md 뜯어보기
+
+`commands/wiki.md`는 `/wiki` 커맨드의 부트스트랩 워크플로우를 정의한다.
+
+### Vault Bootstrap Command
+
+```markdown title="commands/wiki.md"
+1. Check if Obsidian is installed.
+2. Check if this directory has a vault (look for .obsidian/ folder).
+3. Check if the MCP server is configured (claude mcp list).
+4. Ask ONE question: "What is this vault for?"
+```
+
+`/wiki` 커맨드를 실행하면 4단계 체크가 순서대로 실행된다. Obsidian 설치 여부, 볼트 존재 여부, MCP 설정 여부를 확인한 뒤 한 질문을 던진다.
+
+### One-Question Setup
+
+```markdown title="commands/wiki.md"
+Ask ONE question: "What is this vault for?"
+Then build the entire wiki structure based on the answer.
+Don't ask more questions.
+```
+
+질문은 **딱 하나**다. "이 볼트를 뭐에 쓸 건가요?" 답변을 받으면 더 묻지 않고 전체 구조를 스캐폴딩한다. 10개 질문을 거치는 위저드가 아니라, 한 문장에서 의도를 파악하고 실행하는 방식이다.
+
+### Mode Selection Command
+
+사용자의 답변에서 자동으로 6가지 모드 중 하나를 선택한다.
+
+```markdown title="commands/wiki.md — 예시 답변과 매칭되는 모드"
+- "Map the architecture of github.com/org/repo"           → Mode B
+- "Build a sitemap for example.com"                        → Mode A
+- "Track my SaaS business"                                 → Mode C
+- "Research project on [topic]"                            → Mode E
+- "Personal second brain"                                  → Mode D
+- "Organize my YouTube channel"                            → Mode F
+```
+
+### Structure Scaffolding
+
+모드가 결정되면 폴더, 도메인 페이지, `_index.md` 서브 인덱스, `_templates/` 파일이 한 번에 생성된다.
+
+### Visual Customization Setup
+
+스캐폴딩의 일부로 `css-snippets.md`를 읽어 `.obsidian/snippets/vault-colors.css`를 생성하고 활성화 방법을 안내한다.
+
+### Vault CLAUDE.md Creation
+
+볼트 루트에 모드, 목적, 컨벤션을 기록하는 CLAUDE.md를 생성한다. 이 파일이 있어야 이후 세션에서 Claude가 이 볼트의 규약을 알 수 있다.
+
+### Git Initialization Command
+
+`git-setup.md`를 읽어 git init, .gitignore 설정, 첫 커밋을 실행한다.
+
+### Existing Vault Detection
+
+```markdown title="commands/wiki.md"
+If the vault is already set up, skip to checking what has been
+ingested recently and offering to continue where things left off.
+```
+
+`.obsidian/` 폴더가 이미 존재하면 스캐폴딩을 건너뛰고 현재 상태를 보고한다. 최근 인제스트 기록을 확인하고 "이어서 할까요?"를 제안한다.
+
+---
+
+## 다른 스킬과의 연결점
+
+wiki 스킬은 오케스트레이터로서 6개의 서브 스킬로 트래픽을 라우팅한다.
+
+| 서브 스킬 | 역할 | wiki가 넘기는 것 |
+|-----------|------|-----------------|
+| **wiki-ingest** | 소스 문서를 위키 페이지로 변환 | `.raw/`의 파일 경로 |
+| **wiki-query** | 위키 기반 질의 응답 | 사용자의 질문 |
+| **wiki-lint** | 위키 건강 상태 점검 | 전체 볼트 경로 |
+| **save** | 현재 대화를 위키 노트로 저장 | 대화 컨텍스트 |
+| **autoresearch** | 자율 연구 루프 (검색-수집-합성-저장) | 연구 주제 |
+| **canvas** | Obsidian 캔버스에 시각 자료 추가 | 노트/이미지 경로 |
+
+wiki 스킬 자체는 SCAFFOLD만 직접 처리한다. 나머지는 라우팅 테이블을 보고 적절한 스킬에 위임한다. 이 분리 덕분에 각 스킬이 독립적으로 발전할 수 있고, wiki는 교통정리에만 집중한다.
+
+---
+
+다음 편에서는 `obsidian-markdown` 스킬을 뜯어보기한다. 위키링크, 임베드, 콜아웃, 프로퍼티 등 Obsidian Flavored Markdown의 문법을 코드 레벨에서 분석한다.

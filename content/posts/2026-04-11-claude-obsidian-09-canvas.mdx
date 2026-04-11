@@ -1,0 +1,644 @@
+---
+title: "claude-obsidian 스킬 뜯어보기 (9): canvas"
+description: "JSON Canvas 오픈 표준, 노드 타입 5종, Zone 기반 조직, 자동 배치 알고리즘을 코드 레벨에서 분석한다."
+date: "2026-04-11"
+published: true
+tags: ["claude-obsidian", "obsidian", "canvas", "json-canvas", "visualization"]
+series: "claude-obsidian-skills"
+seriesOrder: 9
+---
+
+## 이 스킬이 하는 일
+
+`canvas`는 위키의 **시각 레이어**를 담당하는 스킬이다. Obsidian의 캔버스 파일(`.canvas`)은 무한 보드 위에 이미지, 텍스트 카드, PDF, 위키 페이지를 자유롭게 배치하는 시각 도구인데, 이 스킬은 캔버스 JSON을 직접 읽고 쓴다.
+
+SKILL.md 도입부가 세 스킬의 역할 분담을 명확히 정리한다.
+
+```markdown title="skills/canvas/SKILL.md"
+The three knowledge capture layers:
+- `/save` → text synthesis (wiki/questions/, wiki/concepts/)
+- `/autoresearch` → structured knowledge (wiki/sources/, wiki/concepts/)
+- `/canvas` → visual references (wiki/canvases/)
+```
+
+`/save`가 텍스트 합성, `/autoresearch`가 구조적 지식 수집이라면, `/canvas`는 **시각 자료 정리**다. 브랜드 가이드 이미지, 아키텍처 다이어그램, 스크린샷 같은 시각 자산을 하나의 보드에 모아두는 것이 이 스킬의 핵심 역할이다.
+
+## 파일 구조
+
+```text title="canvas 스킬 파일 트리"
+claude-obsidian/
+├── skills/canvas/
+│   ├── SKILL.md                        # 스킬 본체 — 9가지 오퍼레이션, 배치 알고리즘
+│   └── references/
+│       └── canvas-spec.md              # JSON Canvas 스펙 — 좌표계, 노드 타입, 색상
+└── commands/
+    └── canvas.md                       # /canvas 커맨드 라우터 — 9종 커맨드 매핑
+```
+
+세 파일이 서로 다른 역할을 맡는다. **SKILL.md**는 각 오퍼레이션의 실행 절차를 정의하고, **canvas-spec.md**는 JSON Canvas 포맷의 기술 레퍼런스이며, **commands/canvas.md**는 사용자 입력을 오퍼레이션으로 라우팅하는 커맨드 테이블이다. SKILL.md 자체도 "Read `references/canvas-spec.md` for the full format reference before making any edits"라고 명시할 정도로, spec 파일을 단일 진실 소스(single source of truth)로 취급한다.
+
+---
+
+## SKILL.md 뜯어보기
+
+### Visual Reference Layer
+
+SKILL.md의 핵심 전제부터 확인하자.
+
+```markdown title="skills/canvas/SKILL.md"
+A canvas is a JSON file Obsidian renders as an infinite visual board.
+This skill reads and writes canvas JSON directly.
+Read `references/canvas-spec.md` for the full format reference
+before making any edits.
+```
+
+캔버스 파일이 JSON이라는 점이 핵심이다. Obsidian UI를 거치지 않고 **JSON을 직접 조작**한다. Claude는 Read/Write/Edit 도구만으로 캔버스에 노드를 추가하고 위치를 잡을 수 있다. GUI 자동화 같은 복잡한 접근이 필요 없다.
+
+### Canvas JSON Format -- nodes + edges
+
+캔버스 JSON의 최상위 구조는 두 배열이다.
+
+```json title="skills/canvas/SKILL.md"
+{
+  "nodes": [ ... ],
+  "edges": []
+}
+```
+
+`nodes`는 캔버스 위의 모든 시각 요소(이미지, 텍스트, PDF, 위키 페이지, Zone 그룹)를, `edges`는 노드 간 연결선을 담는다. 무드보드나 레퍼런스 보드에서는 `edges`가 보통 빈 배열이다 -- 관계를 화살표로 표현할 필요가 없기 때문이다.
+
+### Default Canvas -- main.canvas
+
+스킬은 기본 캔버스 파일 경로를 하드코딩한다.
+
+```markdown title="skills/canvas/SKILL.md"
+`wiki/canvases/main.canvas`
+```
+
+이 파일이 없으면 자동으로 생성한다. 시작 구조를 보자.
+
+```json title="skills/canvas/SKILL.md"
+{
+  "nodes": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "# Visual Reference\n\nDrop images, PDFs, and notes here.",
+      "x": -400, "y": -300, "width": 400, "height": 120, "color": "6"
+    },
+    {
+      "id": "zone-default",
+      "type": "group",
+      "label": "General",
+      "x": -400, "y": -140, "width": 800, "height": 400, "color": "4"
+    }
+  ],
+  "edges": []
+}
+```
+
+두 노드가 기본으로 생성된다. **title** 텍스트 노드(보라색 `"6"`)와 **General** Zone 그룹 노드(초록색 `"4"`). Zone이 title 아래(`y: -140`이 `y: -300`보다 아래)에 위치하여, 새로 추가되는 콘텐츠가 이 Zone 안에 배치된다. `"color": "6"`은 보라색으로 제목/아이덴티티용이고, `"color": "4"`는 초록색으로 콘텐츠/소스용이다 -- 이 색상 규칙은 `canvas-spec.md`에서 자세히 다룬다.
+
+### 노드 타입 -- Image, Text, PDF, File, Zone
+
+SKILL.md는 5가지 `add` 오퍼레이션을 정의한다. 각각이 서로 다른 노드 타입을 생성한다.
+
+**Image 노드** (`/canvas add image`)는 URL이면 `curl`로 다운로드하고 로컬 경로면 복사한 뒤, PIL이나 `identify`로 종횡비를 감지해서 적절한 캔버스 크기를 계산한다.
+
+```markdown title="skills/canvas/SKILL.md"
+**Detect aspect ratio:**
+Use `python3 -c "from PIL import Image; img=Image.open('[path]');
+print(img.width, img.height)"` or `identify -format '%w %h' [path]`.
+See `references/canvas-spec.md` for the full aspect ratio →
+canvas size table (7 ratios including 4:3, 3:4, ultra-wide).
+```
+
+이미지 크기를 하드코딩하지 않고 실제 이미지의 종횡비에 따라 7가지 사이즈 매핑을 적용한다. "Do not use an inline table here"라고 명시하여, 크기 테이블은 반드시 spec 파일에서 참조하도록 한다. 정보의 중복을 방지하는 설계다.
+
+**Text 노드** (`/canvas add text`)는 마크다운 콘텐츠를 카드로 렌더링한다.
+
+```json title="skills/canvas/SKILL.md"
+{
+  "id": "text-[timestamp]",
+  "type": "text",
+  "text": "[content]",
+  "x": "[auto]", "y": "[auto]",
+  "width": 300, "height": 120,
+  "color": "4"
+}
+```
+
+고정 크기 `300x120`에 초록색(`"4"`)이다. 위치는 `[auto]` -- 자동 배치 알고리즘이 결정한다.
+
+**PDF 노드** (`/canvas add pdf`)는 이미지와 동일한 로직이지만 고정 크기 `400x520`을 사용한다. Obsidian이 PDF의 첫 페이지를 미리보기로 렌더링하기 때문에, 세로로 긴 비율이 필요하다.
+
+```markdown title="skills/canvas/SKILL.md"
+Same as add image. Obsidian renders PDFs natively as file nodes.
+- Copy to `_attachments/pdfs/canvas/` if outside vault.
+- Fixed size: width=400, height=520.
+```
+
+**File 노드** (`/canvas add note`)는 위키 페이지를 캔버스에 링크하는 것이다. 여기서 중요한 구분이 있다.
+
+```markdown title="skills/canvas/SKILL.md"
+Use `"type": "file"` (not `"type": "link"`):
+`.md` files use file nodes, not link nodes.
+`"type": "link"` takes a `url: "https://..."`:
+it is for web URLs only.
+```
+
+`.md` 파일은 반드시 `"type": "file"`을 사용하고, `"type": "link"`는 웹 URL 전용이다. 이 구분을 틀리면 Obsidian이 노드를 렌더링하지 못한다. File 노드는 `300x100` 고정 크기로 가장 컴팩트하다.
+
+```json title="skills/canvas/SKILL.md"
+{
+  "id": "note-[timestamp]",
+  "type": "file",
+  "file": "wiki/concepts/LLM Wiki Pattern.md",
+  "x": "[auto]", "y": "[auto]",
+  "width": 300, "height": 100
+}
+```
+
+**Zone 노드** (`/canvas zone`)는 `"type": "group"`으로, 라벨이 달린 직사각형 영역을 만든다.
+
+```json title="skills/canvas/SKILL.md"
+{
+  "id": "zone-[slug]",
+  "type": "group",
+  "label": "[name]",
+  "x": -400,
+  "y": "[max_y]",
+  "width": 1000,
+  "height": 400,
+  "color": "[color or '3']"
+}
+```
+
+새 Zone은 기존 콘텐츠의 최하단(`max_y`) 아래 60px 간격으로 배치된다. 기본 색상은 노란색(`"3"` -- WIP/Notes 용도). 유효한 색상은 `"1"`(빨강) ~ `"6"`(보라)이다.
+
+### Auto-Positioning Algorithm
+
+자동 배치 알고리즘이 이 스킬의 가장 흥미로운 부분이다. SKILL.md에 Python pseudocode로 정의되어 있다.
+
+```python title="skills/canvas/SKILL.md"
+def next_position(canvas_nodes, target_zone_label, new_w, new_h):
+    # Find zone group node
+    zone = next((n for n in canvas_nodes
+                 if n.get('type') == 'group'
+                 and n.get('label') == target_zone_label), None)
+
+    if zone is None:
+        # No zone: place below all content
+        max_y = max((n['y'] + n.get('height', 0)
+                     for n in canvas_nodes), default=-140)
+        return -400, max_y + 60
+```
+
+**Zone이 없으면**: 모든 콘텐츠의 최하단 + 60px에 배치한다.
+
+```python title="skills/canvas/SKILL.md"
+    # Nodes inside this zone
+    inside = [n for n in canvas_nodes
+              if n.get('type') != 'group'
+              and zx <= n['x'] < zx + zw
+              and zy <= n['y'] < zy + zh]
+
+    if not inside:
+        return zx + 20, zy + 20
+```
+
+**Zone 안이 비어 있으면**: Zone의 좌상단 + 20px 패딩에 배치한다.
+
+```python title="skills/canvas/SKILL.md"
+    rightmost_x = max(n['x'] + n.get('width', 0) for n in inside)
+    next_x = rightmost_x + 40
+
+    if next_x + new_w > zx + zw:
+        # New row
+        max_row_y = max(n['y'] + n.get('height', 0) for n in inside)
+        return zx + 20, max_row_y + 20
+
+    # Same row: align to the top of all existing nodes in the zone
+    current_row_y = min(n['y'] for n in inside)
+    return next_x, current_row_y
+```
+
+**Zone 안에 노드가 있으면**: 가장 오른쪽 노드의 우측 + 40px에 배치한다. 만약 새 노드가 Zone 너비를 초과하면(**overflow**), 새 행을 시작한다. 같은 행 안에서는 기존 노드의 최상단 y에 맞춰 정렬한다.
+
+핵심 로직은 "Zone을 bounding box로 보고 좌에서 우로, 위에서 아래로 채운다"는 것이다. 브라우저의 `flex-wrap`과 유사한 패턴이다.
+
+### Unique ID Generation -- [type]-[slug]-[timestamp]
+
+ID 충돌 방지를 위한 규칙이 명확하다.
+
+```markdown title="skills/canvas/SKILL.md"
+Safe ID pattern: `[type]-[content-slug]-[full-unix-timestamp]`
+
+Use the full Unix timestamp (10 digits)
+to avoid collisions in batch operations.
+
+Examples: `img-cover-1744032823`, `text-note-1744032845`,
+          `zone-branding-1744032901`
+
+If a collision is detected (ID already exists in the canvas),
+append `-2`, `-3`, etc.
+```
+
+타입 접두사 + 내용 슬러그 + 유닉스 타임스탬프 조합이다. 10자리 유닉스 타임스탬프는 초 단위이므로, 같은 초에 여러 노드를 추가하는 배치 작업에서만 충돌이 발생할 수 있다. 그때는 `-2`, `-3` 접미사로 해결한다. 이 패턴은 JSON Canvas 1.0 스펙이 권장하는 16자 hex ID와는 다르지만, **사람이 읽기 쉬운** 대안이다 -- 이 차이점은 spec 뜯어보기에서 자세히 다룬다.
+
+### Session Image Log
+
+```markdown title="skills/canvas/SKILL.md"
+If `wiki/canvases/.recent-images.txt` exists,
+append any new image path written to `_attachments/images/`
+during this session (one path per line, keep last 20).
+
+`/canvas from banana` reads this file first,
+making it instant without filesystem search.
+```
+
+`.recent-images.txt`는 세션 동안 추가된 이미지 경로를 기록하는 로그 파일이다. 최근 20개만 유지한다. `/canvas from banana`가 이 파일을 먼저 읽어 파일시스템 검색 없이 즉시 최근 이미지를 찾을 수 있다. 간단한 캐시 메커니즘이지만 효과적이다.
+
+### Banana Integration
+
+```markdown title="skills/canvas/SKILL.md"
+After any `/banana` run in the same session,
+if the user says "add to canvas" or "put on canvas",
+treat it as `/canvas from banana`.
+
+When `/banana` finishes generating images, suggest:
+> "Add generated images to canvas? Run `/canvas from banana`"
+```
+
+`/banana`는 이미지 생성 플러그인(외부, 선택적)이다. `/banana`로 이미지를 생성한 뒤 "캔버스에 추가해" 한마디면 `/canvas from banana`로 연결된다. `.recent-images.txt`가 있으면 즉시 목록을 보여주고, 없으면 `find` 명령으로 최근 10분 내 변경된 이미지를 검색한다.
+
+```bash title="skills/canvas/SKILL.md"
+python3 -c "import time,os; open('/tmp/ten-min-ago','w').close(); \
+os.utime('/tmp/ten-min-ago',(time.time()-600,time.time()-600))"
+find _attachments/images -newer /tmp/ten-min-ago \
+\( -name "*.png" -o -name "*.jpg" \)
+```
+
+`find`의 `-newer` 플래그와 괄호 우선순위 처리에 대한 주의가 달려 있다: "parentheses required. Without them `-newer` only binds to the last `-name` clause". 이런 쉘 디테일까지 스킬 문서에 기록해두는 것이 특징적이다.
+
+### JSON Canvas Open Standard
+
+```markdown title="skills/canvas/SKILL.md"
+This spec aligns with the JSON Canvas open standard
+(https://jsoncanvas.org/).
+If the kepano/obsidian-skills plugin is installed,
+its json-canvas skill is the authoritative canvas spec reference.
+Otherwise, use the guidance below.
+```
+
+Obsidian의 캔버스 포맷이 오픈 표준이라는 점이 이 스킬의 기반이다. [jsoncanvas.org](https://jsoncanvas.org/)에서 스펙 1.0이 공개되어 있으며, Obsidian 외의 도구에서도 `.canvas` 파일을 읽고 쓸 수 있다. `kepano/obsidian-skills`는 Obsidian 공식 스킬 플러그인으로, 설치되어 있으면 그것이 우선이다.
+
+---
+
+## canvas-spec.md 뜯어보기
+
+`references/canvas-spec.md`는 캔버스 JSON 포맷의 기술 레퍼런스다. SKILL.md가 "무엇을 할 것인가"라면, spec은 "포맷이 어떻게 생겼는가"를 정의한다.
+
+### JSON Canvas 1.0 Structure
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+Canvas files are JSON with two top-level keys:
+`nodes` (array) and `edges` (array).
+Obsidian reads and writes them as UTF-8 JSON files
+with `.canvas` extension.
+```
+
+최상위 키는 `nodes`와 `edges` 두 개뿐이다. UTF-8 인코딩, `.canvas` 확장자. 여기에 중요한 호환성 규칙이 추가된다.
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+All structures support arbitrary additional fields
+(`[key: string]: any`) for forward compatibility.
+Obsidian will preserve unknown fields
+when reading and writing canvas files.
+```
+
+알 수 없는 필드를 보존한다 -- forward compatibility를 위한 설계다. 향후 스펙이 확장되어도 기존 도구가 데이터를 파괴하지 않는다.
+
+### ID Format -- 16자 hex vs descriptive slug
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+**ID format**: The JSON Canvas 1.0 spec recommends
+16-character lowercase hexadecimal IDs
+(e.g., `"a1b2c3d4e5f67890"`).
+Obsidian itself generates IDs in this format.
+The descriptive ID examples in this reference
+(`"text-title-4821"`, `"img-cover-7823"`)
+are an alternative naming convention
+that this plugin uses for human readability.
+Both are valid JSON Canvas.
+```
+
+두 가지 ID 포맷이 공존한다. JSON Canvas 1.0 표준은 `a1b2c3d4e5f67890` 같은 16자 hex ID를 권장하고, Obsidian도 이 포맷으로 ID를 생성한다. 하지만 claude-obsidian 플러그인은 `text-title-4821`처럼 **사람이 읽을 수 있는** descriptive slug를 사용한다. 둘 다 유효한 JSON Canvas이므로 어느 것을 써도 상관없다.
+
+### Coordinate System -- origin, x, y
+
+```text title="skills/canvas/references/canvas-spec.md"
+        x increases →
+   ┌─────────────────────────────────
+   │  (-920, -2400)      (0, -2400)
+   │
+y  │  (-920, 0)          (0, 0) ← origin
+↓  │
+   │  (-920, 540)        (500, 540)
+```
+
+좌표계 규칙을 정리하면:
+
+- **원점** (0, 0)은 캔버스 뷰포트의 중앙이다
+- **x는 오른쪽으로 증가**, **y는 아래쪽으로 증가**한다
+- 노드의 `x`, `y`는 노드의 **좌상단 모서리** 좌표다 (중앙이 아님)
+- 음수 y가 위쪽이므로 `y: -2400`은 `y: -1000`보다 **위**에 있다
+
+Common Mistakes 섹션에서도 "Negative y confusion"을 별도로 경고한다.
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+**Negative y confusion**: `y: -2400` is ABOVE `y: -1000`
+(more negative = higher up)
+```
+
+### 5가지 Node Types 상세
+
+spec은 네 가지 노드 타입을 정의한다 (Group 포함 총 네 종류). SKILL.md의 오퍼레이션 관점 5가지와는 분류가 다르다 -- spec에서 Image와 PDF는 모두 File 노드의 하위 유형이다.
+
+**Text 노드**는 마크다운을 카드로 렌더링한다.
+
+```json title="skills/canvas/references/canvas-spec.md"
+{
+  "id": "text-title-4821",
+  "type": "text",
+  "text": "# Heading\n\nParagraph with **bold** and `code`.",
+  "x": -400, "y": -300,
+  "width": 400, "height": 120,
+  "color": "6"
+}
+```
+
+`text` 필드에 마크다운 문자열을 넣되 줄바꿈은 `\n`으로 표현한다. 최소 가독 크기는 `width >= 200`, `height >= 60`이며, `color`는 선택사항이다.
+
+**File 노드**는 이미지, PDF, 마크다운 노트, 기타 vault 파일을 인라인 렌더링한다.
+
+```json title="skills/canvas/references/canvas-spec.md"
+{
+  "id": "img-cover-7823",
+  "type": "file",
+  "file": "_attachments/images/example.png",
+  "x": -900, "y": -100,
+  "width": 420, "height": 236
+}
+```
+
+핵심은 `file` 필드가 **vault 상대 경로**여야 한다는 점이다. 절대 경로(`/home/user/...`)나 `~/` 경로를 사용하면 안 된다. 지원 확장자는 `.png`, `.jpg`, `.webp`, `.gif`, `.pdf`, `.md`, `.canvas`이다. File 노드에는 `color` 필드가 무시된다.
+
+**Group 노드(Zone)**는 라벨이 달린 직사각형 영역이다.
+
+```json title="skills/canvas/references/canvas-spec.md"
+{
+  "id": "zone-branding-3391",
+  "type": "group",
+  "label": "Brand Identity",
+  "x": -920, "y": -880,
+  "width": 1060, "height": 290,
+  "color": "6",
+  "background": "_attachments/images/grid-bg.png",
+  "backgroundStyle": "cover"
+}
+```
+
+여기서 중요한 점: **Group은 노드를 포함(clip)하지 않는다.** 노드를 Group "안에" 배치한다는 것은 단지 Group의 bounding box 안에 위치시킨다는 의미이지, JSON에서 부모-자식 관계가 있는 것이 아니다.
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+Groups do not affect auto-layout:
+they are purely visual containers.
+```
+
+`background`와 `backgroundStyle`은 선택 필드다. `backgroundStyle`은 세 가지 값을 가진다:
+- `"cover"`: 그룹을 채우며 필요시 잘라냄
+- `"ratio"`: 종횡비를 유지하며 그룹 안에 맞춤
+- `"repeat"`: 이미지를 타일링
+
+**Link 노드**는 웹 URL을 OG(Open Graph) 미리보기 카드로 렌더링한다.
+
+```json title="skills/canvas/references/canvas-spec.md"
+{
+  "id": "link-karpathy-2233",
+  "type": "link",
+  "url": "https://github.com/karpathy",
+  "x": 200, "y": -300,
+  "width": 400, "height": 120
+}
+```
+
+`url`은 반드시 `https://` URL이어야 한다. Obsidian이 OG 메타데이터(제목, 설명, 썸네일)를 가져와 미리보기를 생성한다. SKILL.md에서 `.md` 파일에 `"type": "link"`를 쓰면 안 된다고 경고한 이유가 이것이다 -- `link`는 **웹 URL 전용**이다.
+
+### Edge Definition -- direction, label
+
+```json title="skills/canvas/references/canvas-spec.md"
+{
+  "id": "e-hub-cidx",
+  "fromNode": "hub",
+  "fromSide": "right",
+  "fromEnd": "none",
+  "toNode": "c-idx",
+  "toSide": "left",
+  "toEnd": "arrow",
+  "label": "concepts",
+  "color": "5"
+}
+```
+
+필수 필드는 `id`, `fromNode`, `toNode` 세 가지뿐이다. 나머지는 모두 선택사항이다.
+
+- `fromSide` / `toSide`: `"top"`, `"bottom"`, `"left"`, `"right"` 중 하나. 생략하면 Obsidian이 노드의 상대적 위치를 보고 **자동으로 최적의 면을 선택**한다.
+- `fromEnd` / `toEnd`: 화살촉 여부. `"none"` 또는 `"arrow"`.
+- `label`: 엣지 위에 표시되는 텍스트.
+- `color`: 노드와 같은 색상 팔레트 (`"1"` ~ `"6"` 또는 hex).
+
+### Asymmetric Edge Defaults
+
+엣지의 기본값이 비대칭이라는 점이 흥미롭다.
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+`fromEnd` *(optional)*: end-cap on the source side.
+  Defaults to `"none"`.
+`toEnd` *(optional)*: end-cap on the target side.
+  **Defaults to `"arrow"`**:
+  note the asymmetric default vs `fromEnd`.
+```
+
+`fromEnd`는 기본값이 `"none"`이고, `toEnd`는 기본값이 `"arrow"`다. 아무것도 지정하지 않으면 source에서 target으로 향하는 **단방향 화살표**가 그려진다. 대부분의 관계가 방향성을 가지므로 합리적인 기본값이다.
+
+### Edge Label
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+- `label` *(optional)*: text shown on the edge.
+```
+
+엣지에 라벨을 달면 관계의 의미를 명시할 수 있다. 위 예시에서 `"label": "concepts"`는 hub 노드에서 c-idx 노드로의 연결이 "concepts" 관계임을 표시한다.
+
+### Color Palette -- 6가지 표준 색상
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+| Code | Color         | Hex (approx) | Use case              |
+|------|---------------|-------------|-----------------------|
+| "1"  | Red / Tomato  | #e03e3e     | Warnings, archive     |
+| "2"  | Orange        | #d09035     | Active work           |
+| "3"  | Yellow / Gold | #d0a023     | WIP, notes            |
+| "4"  | Green / Teal  | #448361     | Content, sources      |
+| "5"  | Blue / Cyan   | #3ea7d3     | Navigation, info      |
+| "6"  | Purple/Violet | #9063d2     | Title, identity       |
+```
+
+6가지 색상에 각각 용도가 할당되어 있다. SKILL.md에서 기본 캔버스의 title이 보라색(`"6"` -- identity), General Zone이 초록색(`"4"` -- content)인 이유가 여기서 확인된다. `color`를 생략하면 테두리 색이 없는 투명 기본값이 적용된다.
+
+### Aspect Ratio Sizing -- 이미지/PDF 크기 가이드
+
+```markdown title="skills/canvas/references/canvas-spec.md"
+| Aspect ratio    | Condition      | Canvas width | Canvas height |
+|-----------------|----------------|-------------|--------------|
+| 16:9 (wide)     | ratio 1.6–2.0  | 420         | 236          |
+| 2:1 (ultra wide)| ratio > 2.0    | 440         | 220          |
+| 4:3             | ratio 1.2–1.6  | 380         | 285          |
+| 1:1 (square)    | ratio 0.9–1.1  | 280         | 280          |
+| 3:4             | ratio 0.6–0.9  | 240         | 320          |
+| 9:16 (portrait) | ratio < 0.6    | 200         | 356          |
+| PDF             | any            | 400         | 520          |
+| Unknown         | fallback       | 320         | 240          |
+```
+
+7가지 종횡비 + PDF + Unknown(fallback)으로 총 8가지 크기 매핑이다. `ratio`는 `width / height`로 계산한다. 가로가 긴 이미지(16:9, 2:1)는 넓은 캔버스 크기를, 세로가 긴 이미지(3:4, 9:16)는 좁고 높은 캔버스 크기를 할당받는다. PDF는 종횡비에 관계없이 항상 `400x520`이다.
+
+실제 이미지 크기를 측정하는 명령도 명시되어 있다.
+
+```bash title="skills/canvas/references/canvas-spec.md"
+python3 -c "from PIL import Image; \
+img=Image.open('path.png'); print(img.width, img.height)"
+# or
+identify -format '%w %h' path.png
+```
+
+`PIL`(Pillow)이나 ImageMagick의 `identify` 중 사용 가능한 것을 쓴다.
+
+### Auto-Positioning Pseudocode
+
+spec에도 자동 배치 알고리즘의 pseudocode가 포함되어 있다. SKILL.md의 Python 버전과 동일한 로직이지만 언어에 독립적인 형태다.
+
+```text title="skills/canvas/references/canvas-spec.md"
+function place_node(canvas, zone_label, new_w, new_h):
+  zone = find group node where label == zone_label
+  padding = 20
+
+  if zone not found:
+    max_y = max(n.y + n.height for n in canvas.nodes) + 60
+    return (-400, max_y)
+```
+
+패딩 20px, 행 간격 20px, 노드 간격 40px, Zone 없을 때 하단 간격 60px. 이 상수들이 캔버스의 시각적 밀도를 결정한다.
+
+overflow 조건도 명시되어 있다.
+
+```text title="skills/canvas/references/canvas-spec.md"
+  if next_x + new_w > zone.x + zone.width - padding:
+    # Overflow → new row
+    bottom_of_row = max(n.y + n.height for n in inside)
+    return (zone.x + padding, bottom_of_row + padding)
+```
+
+Zone 폭에서 패딩을 뺀 값보다 새 노드의 오른쪽 끝이 넘어가면 새 행으로 넘어간다. CSS의 `flex-wrap: wrap`과 동일한 패턴이다.
+
+---
+
+## commands/canvas.md 뜯어보기
+
+### /canvas 커맨드 9종
+
+```markdown title="commands/canvas.md"
+| Command                     | What it does                                      |
+|-----------------------------|---------------------------------------------------|
+| `/canvas`                   | Status check — report node counts, list zones     |
+| `/canvas new [name]`        | Create a new named canvas in wiki/canvases/       |
+| `/canvas add image [path]`  | Add image to canvas (download if URL, copy if outside vault) |
+| `/canvas add text [content]`| Add a text card to the canvas                     |
+| `/canvas add pdf [path]`    | Add a PDF document node                           |
+| `/canvas add note [page]`   | Add a wiki page as a linked card                  |
+| `/canvas zone [name] [color]`| Add a new labeled zone group                     |
+| `/canvas list`              | List all canvases with node counts                |
+| `/canvas from banana`       | Find recent generated images and add them         |
+```
+
+9가지 커맨드가 하나의 테이블에 정리되어 있다. 이 파일의 프론트매터가 라우팅 지시를 담는다.
+
+```yaml title="commands/canvas.md"
+---
+description: Open, create, or update a visual canvas —
+  add images, text, PDFs, wiki pages, and banana-generated
+  assets to Obsidian canvas files.
+---
+```
+
+`description`이 Claude Code의 커맨드 매칭에 사용된다. 사용자가 `/canvas` 또는 관련 키워드를 입력하면, 이 커맨드 파일을 거쳐 SKILL.md의 해당 오퍼레이션으로 라우팅된다.
+
+파일 끝에 중요한 폴백 로직이 있다.
+
+```markdown title="commands/canvas.md"
+Default canvas: `wiki/canvases/main.canvas`
+
+If the canvas file does not exist, create it before adding anything.
+```
+
+대상 캔버스를 지정하지 않으면 항상 `main.canvas`를 기본으로 사용하고, 파일이 없으면 먼저 생성한다. 이 덕분에 사용자는 볼트 초기화 직후에도 `/canvas add image photo.png` 한 줄로 바로 시작할 수 있다.
+
+### Zone Management
+
+Zone은 캔버스의 조직 단위다. `/canvas zone [name] [color]` 커맨드로 새 Zone을 추가하고, `/canvas` (인자 없음)로 현재 Zone 목록을 확인한다.
+
+SKILL.md의 status 오퍼레이션이 Zone을 어떻게 보고하는지 보자.
+
+```markdown title="skills/canvas/SKILL.md"
+If yes: read it, count nodes by type,
+list all group node labels (zone names).
+Report: "Canvas has N nodes: X images, Y text cards,
+Z wiki pages. Zones: [list]"
+```
+
+`group` 타입 노드의 `label` 필드를 수집해서 Zone 이름 목록을 보여준다. `new` 오퍼레이션에서는 새 캔버스 생성 시 `wiki/overview.md`에 캔버스 목록을 추가하되, `wiki/index.md`는 수정하지 않는다.
+
+```markdown title="skills/canvas/SKILL.md"
+Add entry to `wiki/overview.md` under a "## Canvases" subsection.
+Do not modify `wiki/index.md`.
+It uses a fixed section schema
+(Domains, Entities, Concepts, Sources, Questions, Comparisons).
+```
+
+`index.md`의 스키마가 고정되어 있기 때문에 캔버스 링크는 `overview.md`에만 추가한다. 이 설계는 index의 일관성을 보호한다.
+
+---
+
+## 다른 스킬과의 연결점
+
+`canvas`는 세 가지 경로로 다른 스킬과 연결된다.
+
+1. **wiki-ingest/wiki-query와의 수직 관계**: `/save`가 텍스트, `/autoresearch`가 구조적 지식, `/canvas`가 시각 자료를 담당한다. 인제스트한 소스에 다이어그램이 포함되어 있다면, 텍스트 정보는 wiki 페이지로, 다이어그램 이미지는 캔버스로 각각 흘러간다.
+
+2. **banana와의 이미지 파이프라인**: `/banana`로 생성된 이미지가 `.recent-images.txt`를 거쳐 `/canvas from banana`로 캔버스에 자동 배치된다. 세션 로그가 이 파이프라인의 핵심 연결 고리다.
+
+3. **wiki-lint의 Canvas Map 생성**: 5편에서 다룬 `wiki-lint`의 "Canvas Map Generation" 기능은 위키 구조를 시각화한 `.canvas` 파일을 생성한다. 린트가 생성한 캔버스도 이 스킬의 포맷 규격을 따른다.
+
+SKILL.md 마지막에 claude-canvas 플러그인과의 관계도 명시한다.
+
+```markdown title="skills/canvas/SKILL.md"
+For standalone visual production (12 templates, 6 layout algorithms,
+AI generation, presentations),
+see claude-canvas (https://github.com/AgriciDaniel/claude-canvas).
+This skill handles wiki-scoped visual boards.
+claude-canvas handles full-featured canvas orchestration
+for any project.
+```
+
+`claude-obsidian/canvas`는 위키 범위의 시각 보드에 집중하고, `claude-canvas`는 프레젠테이션, AI 이미지 생성 등 범용 캔버스 오케스트레이션을 담당한다. 역할이 명확히 분리되어 있다.
+
+canvas 스킬은 39개 개념 중 어느 하나도 복잡하지 않지만, 좌표계 + 자동 배치 + Zone 조직 + 종횡비 매핑이 조합되면 "JSON 직접 편집"만으로 깔끔한 시각 보드를 만들어낸다. Obsidian UI를 터치하지 않고 코드만으로 캔버스를 제어한다는 점이 이 스킬의 핵심 가치다.

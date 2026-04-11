@@ -1,0 +1,293 @@
+---
+title: "claude-obsidian 스킬 뜯어보기 (4): wiki-query"
+description: "Quick/Standard/Deep 3가지 조회 모드, 토큰 예산 관리, 답변 파일링 메커니즘을 코드 레벨에서 분석한다."
+date: "2026-04-11"
+published: true
+tags: ["claude-obsidian", "obsidian", "query", "token-efficiency"]
+series: "claude-obsidian-skills"
+seriesOrder: 4
+---
+
+## 이 스킬이 하는 일
+
+`wiki-query`는 위키에 축적된 지식을 **조회하고 답변하는** 스킬이다. `wiki-ingest`가 소스를 위키로 합성하는 "입력" 스킬이라면, `wiki-query`는 그 지식을 꺼내 쓰는 "출력" 스킬이다.
+
+핵심 설계 철학은 SKILL.md 첫 줄에 드러난다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+The wiki has already done the synthesis work. Read strategically,
+answer precisely, and file good answers back so the knowledge compounds.
+```
+
+위키는 이미 합성이 끝난 상태다. RAG처럼 원본을 매번 검색하는 게 아니라, **정리된 지식을 전략적으로 읽고, 좋은 답변은 다시 위키에 저장**해서 지식이 복리로 쌓이게 한다. 이 "read strategically + file back" 루프가 wiki-query의 전부다.
+
+이 글에서는 SKILL.md 하나에 담긴 10개 개념을 코드 레벨에서 분석한다.
+
+## 파일 구조
+
+```text title="wiki-query 스킬 파일 트리"
+claude-obsidian/
+└── skills/wiki-query/
+    └── SKILL.md    # 스킬 본체 — 조회 모드, 토큰 규율, 파일링 규약
+```
+
+`wiki-ingest`가 7개 레퍼런스 파일을 거느리는 것과 대조적으로, `wiki-query`는 **SKILL.md 단 한 파일**이다. 조회 스킬은 복잡한 변환 파이프라인이 필요 없기 때문이다. 대신 그 한 파일 안에 3가지 조회 모드, 토큰 예산표, 인덱스 포맷 레퍼런스, 답변 파일링 스키마, 갭 핸들링 프로토콜이 빈틈없이 들어 있다.
+
+---
+
+## SKILL.md 뜯어보기
+
+### Query Modes — Quick/Standard/Deep
+
+SKILL.md는 세 가지 조회 모드를 정의한다. 질문의 복잡도에 따라 읽는 범위와 토큰 비용이 달라진다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+| Mode         | Trigger                     | Reads                        | Token cost | Best for                          |
+|--------------|-----------------------------|------------------------------|------------|-----------------------------------|
+| **Quick**    | `query quick: ...`          | hot.md + index.md only       | ~1,500     | "What is X?", date lookups        |
+| **Standard** | default (no flag)           | hot.md + index + 3-5 pages   | ~3,000     | Most questions                    |
+| **Deep**     | `query deep: ...`           | Full wiki + optional web     | ~8,000+    | Compare A vs B, synthesis         |
+```
+
+설계 포인트가 두 가지 있다.
+
+1. **기본값이 Standard다.** 플래그 없이 질문하면 자동으로 Standard 모드로 동작한다. 대부분의 질문은 3~5개 페이지면 충분하다는 경험적 판단이 반영되어 있다.
+2. **토큰 비용이 명시되어 있다.** LLM 스킬에 토큰 예산을 적어두는 것은 드문 패턴이다. Claude가 불필요하게 많이 읽지 않도록 행동을 제약하는 장치다.
+
+### Quick Mode — hot.md + index 조회
+
+Quick 모드는 가장 저렴한 조회 경로다. 개별 위키 페이지를 열지 않는다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+1. Read `wiki/hot.md`. If it answers the question, respond immediately.
+2. If not, read `wiki/index.md`. Scan descriptions for the answer.
+3. If found in index summary, respond and do not open any pages.
+4. If not found, say "Not in quick cache. Run as standard query?"
+```
+
+워크플로우가 **4단계 폴스루(fall-through)** 구조다.
+
+- **1단계**: `hot.md`(최근 컨텍스트 요약, ~500 words)를 읽는다. 여기서 답이 나오면 즉시 응답. 토큰 비용 ~500.
+- **2단계**: `index.md`(전체 카탈로그)의 설명 필드를 스캔한다. 개별 페이지를 열지 않고 인덱스 요약만으로 답변한다.
+- **3단계**: 인덱스에서 찾으면 응답. **개별 위키 페이지는 절대 열지 않는다**라는 규칙이 명시적이다.
+- **4단계**: 못 찾으면 "Standard로 올릴까요?"라고 묻는다. 자동 에스컬레이션이 아니라 **사용자 확인 후 모드 전환**이다.
+
+이 설계의 핵심은 `hot.md`의 존재다. `wiki-ingest`가 매 인제스트마다 `hot.md`를 갱신하기 때문에, 최근에 다룬 주제는 Quick 모드 하나로 즉답이 가능하다. `hot.md`가 위키의 L1 캐시 역할을 하는 셈이다.
+
+### Standard Query Workflow — 5단계
+
+Standard 모드는 wiki-query의 기본 동작이다. 5단계로 구성된다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+1. **Read** `wiki/hot.md` first. It may already have the answer
+   or directly relevant context.
+2. **Read** `wiki/index.md` to find the most relevant pages
+   (scan for titles and descriptions).
+3. **Read** those pages. Follow wikilinks to depth-2 for key entities.
+   No deeper.
+4. **Synthesize** the answer in chat. Cite sources with wikilinks:
+   `(Source: [[Page Name]])`.
+5. **Offer to file** the answer: "This analysis seems worth keeping.
+   Should I save it as `wiki/questions/answer-name.md`?"
+6. If the question reveals a **gap**: say "I don't have enough on X.
+   Want to find a source?"
+```
+
+단계별로 뜯어 보겠습니다.
+
+**1~2단계 (hot.md → index.md)**: Quick 모드와 동일한 진입점이다. 차이는 여기서 멈추지 않고 관련 페이지를 식별한다는 것이다.
+
+**3단계 (페이지 읽기)**: "Follow wikilinks to depth-2. No deeper." 이 규칙이 중요하다. 위키링크를 따라 2단계까지만 탐색하고, 그 이상 깊이 들어가지 않는다. 무한 크롤링을 방지하는 깊이 제한(depth limit)이다.
+
+**4단계 (합성 + 인용)**: 답변에 반드시 위키링크로 출처를 표기한다. `(Source: [[Page Name]])` 형식이다. 사용자가 Obsidian에서 클릭하면 바로 해당 페이지로 이동할 수 있다.
+
+**5단계 (파일링 제안)**: 답변을 `wiki/questions/`에 저장할지 물어본다. 강제가 아니라 **제안**이다. 좋은 답변이 채팅 히스토리에서 사라지지 않도록 위키로 환류시키는 장치다.
+
+**6단계 (갭 감지)**: 질문에 답할 수 없으면 부족한 부분을 명시하고, 소스를 찾을지 제안한다. 이 부분은 뒤에서 별도로 다룬다.
+
+### Deep Mode — 전체 위키 합성
+
+Deep 모드는 위키 전체를 읽는 고비용 조회다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+1. Read `wiki/hot.md` and `wiki/index.md`.
+2. Identify all relevant sections
+   (concepts, entities, sources, comparisons).
+3. Read every relevant page. No skipping.
+4. If wiki coverage is thin, offer to supplement with web search.
+5. Synthesize a comprehensive answer with full citations.
+6. Always file the result back as a wiki page.
+   Deep answers are too valuable to lose.
+```
+
+Standard와 비교했을 때 세 가지가 다르다.
+
+1. **"No skipping"**: Standard가 3~5개 페이지로 제한하는 반면, Deep은 관련 페이지를 **전부** 읽는다.
+2. **웹 검색 보충**: 위키 커버리지가 얇으면 웹 검색을 제안한다. Standard에는 없는 옵션이다.
+3. **반드시 파일링**: "Always file the result back as a wiki page. Deep answers are too valuable to lose." Standard에서는 파일링을 제안만 하지만, Deep에서는 **필수**다. 8,000토큰 이상 쓴 합성 결과를 채팅에만 남기는 것은 낭비이기 때문이다.
+
+이 규칙은 wiki-query가 단순한 조회 스킬이 아니라 **지식 생산 스킬**이기도 하다는 것을 보여준다. Deep 모드를 실행하면 위키에 새 페이지가 추가된다.
+
+### Token Budget Management — 예산 계산
+
+SKILL.md는 "Token Discipline"이라는 이름으로 토큰 예산표를 제시한다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+| Start with      | Cost (approx) | When to stop                              |
+|-----------------|---------------|-------------------------------------------|
+| hot.md          | ~500 tokens   | If it has the answer                      |
+| index.md        | ~1000 tokens  | If you can identify 3-5 relevant pages    |
+| 3-5 wiki pages  | ~300 each     | Usually sufficient                        |
+| 10+ wiki pages  | expensive     | Only for synthesis across the entire wiki |
+
+If hot.md has the answer, respond without reading further.
+```
+
+이 표의 설계 의도는 **누적 비용 인지**다.
+
+- Quick 모드: hot.md(500) + index.md(1000) = **최대 1,500 토큰**
+- Standard 모드: 1,500 + 페이지 5개(1,500) = **최대 3,000 토큰**
+- Deep 모드: 1,500 + 페이지 N개 = **8,000+ 토큰**
+
+"expensive"라는 표현이 인상적이다. 정확한 수치 대신 **비싸다**고만 적어서, Claude가 10개 이상 페이지를 읽을 때 주저하게 만든다. 이것은 하드 리밋이 아니라 소프트 리밋이다. 의도된 행동 유도(nudge)다.
+
+마지막 줄 "If hot.md has the answer, respond without reading further"는 예산 규율의 핵심 원칙이다. 답이 이미 있으면 더 읽지 마라. 단순하지만 LLM이 습관적으로 더 많이 읽는 경향을 억제하는 효과적인 지시다.
+
+### Index Format Scanning + Domain Sub-Index
+
+wiki-query가 인덱스를 효율적으로 스캔하려면, 인덱스의 포맷을 알아야 한다. SKILL.md는 마스터 인덱스와 도메인 서브 인덱스의 정확한 구조를 명시한다.
+
+**마스터 인덱스** (`wiki/index.md`):
+
+```markdown title="skills/wiki-query/SKILL.md — Index Format Reference"
+## Domains
+- [[Domain Name]]: description (N sources)
+
+## Entities
+- [[Entity Name]]: role (first: [[Source]])
+
+## Concepts
+- [[Concept Name]]: definition (status: developing)
+
+## Sources
+- [[Source Title]]: author, date, type
+
+## Questions
+- [[Question Title]]: answer summary
+```
+
+인덱스가 5개 섹션(Domains, Entities, Concepts, Sources, Questions)으로 나뉘어 있다. "Scan the section headers first to determine which sections to read"라는 지시가 따라붙는다. **전체를 읽지 말고 섹션 헤더를 먼저 스캔하라**는 것이다. 인덱스 자체가 ~1,000 토큰이므로 전부 읽어도 큰 부담은 아니지만, 위키가 커지면 인덱스도 커진다. 섹션 헤더 스캔은 스케일링을 고려한 설계다.
+
+**도메인 서브 인덱스** (`wiki/<domain>/_index.md`):
+
+```markdown title="skills/wiki-query/SKILL.md — Domain Sub-Index Format"
+---
+type: meta
+title: "Entities Index"
+updated: YYYY-MM-DD
+---
+# Entities
+
+## People
+- [[Person Name]]: role, org
+
+## Organizations
+- [[Org Name]]: what they do
+
+## Products
+- [[Product Name]]: category
+```
+
+마스터 인덱스가 위키 전체의 목차라면, 서브 인덱스는 특정 도메인의 로컬 목차다. SKILL.md는 명확한 사용 지침을 준다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+Use sub-indexes when the question is scoped to one domain.
+Avoid reading the full master index for narrow queries.
+```
+
+"특정 도메인에 한정된 질문이면 서브 인덱스를 써라. 좁은 질문에 마스터 인덱스 전체를 읽지 마라." 이것은 토큰 예산 관리의 연장선이다. 질문 범위가 좁으면 읽는 범위도 좁혀야 한다.
+
+### Answer Filing Back — wiki/questions/
+
+좋은 답변은 위키에 저장한다. SKILL.md는 답변 페이지의 정확한 프론트매터 스키마를 정의한다.
+
+```yaml title="skills/wiki-query/SKILL.md — Filing Answers Back"
+---
+type: question
+title: "Short descriptive title"
+question: "The exact query as asked."
+answer_quality: solid
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags: [question, <domain>]
+related:
+  - "[[Page referenced in answer]]"
+sources:
+  - "[[wiki/sources/relevant-source.md]]"
+status: developing
+---
+```
+
+프론트매터 필드를 하나씩 보겠습니다.
+
+- **`type: question`**: 위키의 다른 페이지 타입(source, entity, concept, comparison)과 구분한다. `wiki-lint`가 타입별 통계를 낼 때 이 필드를 사용한다.
+- **`question`**: 원래 질문을 그대로 기록한다. 나중에 같은 질문이 들어왔을 때 중복을 감지할 수 있다.
+- **`answer_quality`**: 답변 품질을 `solid`, `partial`, `speculative` 등으로 분류한다. `wiki` 스킬의 프론트매터 스키마에 정의된 `answer_quality` 필드와 동일하다.
+- **`related`**: 답변에서 참조한 위키 페이지들. Obsidian의 백링크 패널에서 역추적이 가능하다.
+- **`sources`**: 답변의 근거가 된 소스 문서. `wiki/sources/` 경로를 사용한다.
+- **`status: developing`**: 답변은 처음 저장할 때 `developing` 상태다. 추가 소스가 인제스트되면 답변도 갱신될 수 있다.
+
+파일링 후에는 두 가지 후속 작업이 필요하다.
+
+```markdown title="skills/wiki-query/SKILL.md"
+After filing, add an entry to `wiki/index.md` under Questions
+and append to `wiki/log.md`.
+```
+
+인덱스의 Questions 섹션에 새 항목을 추가하고, 로그에도 기록한다. 이렇게 해야 다음 조회에서 이 답변을 찾을 수 있다. 파일링만 하고 인덱스를 안 건드리면, 위키에 페이지는 있지만 검색이 안 되는 고아 페이지(orphan page)가 된다.
+
+### Gap Identification
+
+질문에 답할 수 없을 때의 프로토콜이다.
+
+```markdown title="skills/wiki-query/SKILL.md — Gap Handling"
+If the question cannot be answered from the wiki:
+
+1. Say clearly: "I don't have enough in the wiki to answer this well."
+2. Identify the specific gap:
+   "I have nothing on [subtopic]."
+3. Suggest: "Want to find a source on this?
+   I can help you search or process one."
+4. Do not fabricate. Do not answer from training data if the question
+   is about the specific domain in this wiki.
+```
+
+4번 규칙이 가장 중요하다. **"위키 도메인에 관한 질문인데 위키에 없으면, 트레이닝 데이터로 답하지 마라."** LLM의 가장 위험한 습성 — 그럴듯하게 지어내기 — 을 명시적으로 차단한다.
+
+이 규칙이 없으면 Claude는 위키에 없는 내용도 사전 학습 데이터를 기반으로 답변할 것이다. 문제는 그 답변이 위키의 맥락과 어긋날 수 있다는 점이다. 위키는 특정 도메인의 특정 관점을 반영한 지식베이스인데, 일반적인 지식으로 답하면 맥락이 오염된다.
+
+대신 Claude가 해야 할 일은 세 가지다.
+
+1. **부족함을 인정한다**: "I don't have enough"
+2. **구체적 갭을 명시한다**: "I have nothing on [subtopic]" — 무엇이 빠졌는지 정확히 짚는다
+3. **소스 추가를 제안한다**: "Want to find a source?" — 갭을 메울 행동으로 연결한다
+
+이것은 wiki-query에서 wiki-ingest로의 자연스러운 핸드오프다. 조회 중 발견된 갭이 다음 인제스트의 트리거가 된다. 위키가 질문을 통해 스스로의 약점을 파악하고 보강해 나가는 셀프 진단 루프다.
+
+---
+
+## 다른 스킬과의 연결점
+
+wiki-query는 단독으로 동작하지 않는다. claude-obsidian의 다른 스킬들과 긴밀하게 물려 있다.
+
+**wiki-ingest → wiki-query**: ingest가 만든 `hot.md`, `index.md`, 위키 페이지들이 query의 읽기 대상이다. ingest의 출력 품질이 query의 답변 품질을 결정한다.
+
+**wiki-query → wiki-ingest**: Gap Identification에서 부족한 주제가 발견되면, 사용자에게 소스 추가를 제안한다. 조회가 인제스트를 트리거하는 피드백 루프다.
+
+**wiki-query → save**: Deep 모드에서 합성한 답변을 `wiki/questions/`에 파일링하는 과정은 `save` 스킬의 파일링 규약과 동일하다.
+
+**wiki-query → wiki-lint**: 파일링된 답변 중 인덱스에 등록되지 않은 것이 있으면, lint가 고아 페이지로 감지한다. query가 후속 작업(인덱스 업데이트, 로그 기록)을 빠뜨리면 lint가 잡아낸다.
+
+**wiki (오케스트레이터) → wiki-query**: 사용자가 "what do you know about X", "query:", "explain" 등의 트리거 문구를 사용하면, wiki 오케스트레이터가 wiki-query로 라우팅한다.
+
+이 연결 구조에서 wiki-query의 위치는 명확하다. **입력(ingest)과 출력(query) 사이의 읽기 계층**이며, 동시에 좋은 답변을 다시 위키에 저장함으로써 **지식 복리 효과의 마지막 고리**를 완성한다. 질문할수록 위키가 풍부해지는 구조다.

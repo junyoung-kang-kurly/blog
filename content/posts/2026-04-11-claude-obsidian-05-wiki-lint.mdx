@@ -1,0 +1,417 @@
+---
+title: "claude-obsidian 스킬 뜯어보기 (5): wiki-lint"
+description: "8가지 건강 체크 항목, 린트 에이전트, 대시보드/캔버스 맵 자동 생성을 코드 레벨에서 분석한다."
+date: "2026-04-11"
+published: true
+tags: ["claude-obsidian", "obsidian", "lint", "wiki-health"]
+series: "claude-obsidian-skills"
+seriesOrder: 5
+---
+
+## 이 스킬이 하는 일
+
+`wiki-lint`는 위키 볼트의 **건강 상태를 점검하고 유지보수하는** 스킬이다. `wiki-ingest`가 지식을 축적하고 `wiki-query`가 지식을 조회한다면, `wiki-lint`는 축적된 지식의 **일관성, 완전성, 최신성**을 검증한다.
+
+SKILL.md 첫 줄이 이 스킬의 성격을 정의한다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+Run lint after every 10-15 ingests, or weekly.
+Ask before auto-fixing anything.
+Output a lint report to `wiki/meta/lint-report-YYYY-MM-DD.md`.
+```
+
+세 가지 규칙이 명시되어 있다. (1) 10~15회 인제스트마다 또는 주간 단위로 실행, (2) 자동 수정 전 반드시 사용자 확인, (3) 린트 결과를 마크다운 리포트로 기록. 특히 "ask before auto-fixing"은 위키 데이터의 파괴적 변경을 방지하는 안전장치다.
+
+이 글에서는 SKILL.md와 에이전트 파일(`agents/wiki-lint.md`) 두 파일에 담긴 22개 개념을 코드 레벨에서 분석한다.
+
+## 파일 구조
+
+```text title="wiki-lint 스킬 파일 트리"
+claude-obsidian/
+├── skills/wiki-lint/
+│   └── SKILL.md         # 스킬 본체 — 8가지 체크, 네이밍, 대시보드, 캔버스
+└── agents/
+    └── wiki-lint.md     # 에이전트 정의 — 10가지 검사, 3단계 리포트
+```
+
+`wiki-lint`는 **스킬 파일과 에이전트 파일이 한 쌍**으로 구성된다. SKILL.md가 "무엇을 검사할 것인가"를 정의하고, `agents/wiki-lint.md`가 "어떻게 검사를 실행할 것인가"를 정의한다. SKILL.md는 8가지 린트 체크 항목, 네이밍 컨벤션, 문체 검사, Dataview 대시보드, Canvas 맵까지 폭넓은 범위를 다루고, 에이전트 파일은 실제 실행 프로세스와 리포트 구조에 집중한다.
+
+---
+
+## SKILL.md 뜯어보기
+
+### 8가지 Lint Checks
+
+SKILL.md의 핵심은 8가지 린트 체크 항목이다. "Work through these in order"라는 지시문이 있어, Claude는 이 순서대로 체크를 수행한다.
+
+#### 1. Orphan Pages Detection
+
+```markdown title="skills/wiki-lint/SKILL.md"
+1. **Orphan pages**. Wiki pages with no inbound wikilinks.
+   They exist but nothing points to them.
+```
+
+위키 페이지가 존재하지만 **다른 어떤 페이지에서도 링크하지 않는** 상태를 탐지한다. 고아 페이지는 위키 그래프에서 고립된 노드다. 아무리 좋은 내용이 있어도 발견될 수 없으면 사실상 없는 것과 같다. 린트 리포트에서는 "link from `[[Related Page]]` or delete"로 구체적인 조치를 제안한다.
+
+#### 2. Dead Links Detection
+
+```markdown title="skills/wiki-lint/SKILL.md"
+2. **Dead links**. Wikilinks that reference a page that does not exist.
+```
+
+`[[존재하지 않는 페이지]]` 형태의 깨진 링크를 찾는다. 페이지 이름을 변경했거나 삭제한 뒤 참조를 정리하지 않으면 발생한다. 리포트에서는 "create stub or remove link"로 제안한다. 스텁을 생성하면 링크가 살아나고, 링크를 제거하면 깨진 참조가 사라진다.
+
+#### 3. Stale Claims Flagging
+
+```markdown title="skills/wiki-lint/SKILL.md"
+3. **Stale claims**. Assertions on older pages that newer sources
+   have contradicted or updated.
+```
+
+이전 인제스트에서 작성된 주장이 **이후 인제스트의 소스와 모순되는** 경우를 탐지한다. 위키가 성장할수록 이런 불일치가 누적된다. 리포트에서는 "claim 'X' may conflict with newer source `[[Newer Source]]`" 형태로 구체적인 충돌 지점을 지목한다.
+
+#### 4. Missing Pages Identification
+
+```markdown title="skills/wiki-lint/SKILL.md"
+4. **Missing pages**. Concepts or entities mentioned in multiple pages
+   but lacking their own page.
+```
+
+여러 페이지에서 언급되지만 **독립 위키 페이지가 없는** 개념이나 엔티티를 찾는다. 예를 들어 "Transformer"라는 용어가 5개 페이지에서 등장하는데 `Transformer.md`가 없다면 이 체크에 걸린다. 리포트에서는 언급 빈도와 출처 페이지 목록을 함께 제공한다.
+
+```markdown title="skills/wiki-lint/SKILL.md — 린트 리포트 포맷"
+## Missing Pages
+- "concept name": mentioned in [[Page A]], [[Page B]], [[Page C]].
+  Suggest: create a concept page.
+```
+
+#### 5. Cross-Reference Gaps
+
+```markdown title="skills/wiki-lint/SKILL.md"
+5. **Missing cross-references**. Entities mentioned in a page but not linked.
+```
+
+페이지 본문에 엔티티 이름이 텍스트로 등장하지만 `[[ ]]` 위키링크로 감싸지 않은 경우를 탐지한다. Dead Links가 "링크는 있는데 대상이 없는" 문제라면, Cross-Reference Gaps는 "대상은 있는데 링크가 없는" 문제다. 방향이 정반대인 두 체크가 상호 보완 관계를 이룬다.
+
+#### 6. Frontmatter Validation
+
+```markdown title="skills/wiki-lint/SKILL.md"
+6. **Frontmatter gaps**. Pages missing required fields
+   (type, status, created, updated, tags).
+```
+
+5개 필수 프런트매터 필드(`type`, `status`, `created`, `updated`, `tags`)의 존재 여부를 검증한다. 프런트매터가 불완전하면 Dataview 쿼리가 해당 페이지를 누락하거나 잘못 분류한다. 이 체크는 뒤에서 다룰 Dataview 대시보드의 신뢰성을 보장하는 전제 조건이다.
+
+#### 7. Empty Section Detection
+
+```markdown title="skills/wiki-lint/SKILL.md"
+7. **Empty sections**. Headings with no content underneath.
+```
+
+마크다운 헤딩(`##`, `###` 등) 아래에 내용이 없는 빈 섹션을 찾는다. `wiki-ingest`가 스텁 페이지를 생성할 때 섹션 골격만 만들어두는 경우가 있는데, 이후 내용이 채워지지 않으면 이 체크에 걸린다.
+
+#### 8. Stale Index Entries
+
+```markdown title="skills/wiki-lint/SKILL.md"
+8. **Stale index entries**. Items in `wiki/index.md` pointing to
+   renamed or deleted pages.
+```
+
+`wiki/index.md`는 위키 전체의 카탈로그 역할을 한다. 페이지가 삭제되거나 이름이 바뀌었는데 인덱스가 갱신되지 않으면, 인덱스에서 클릭한 링크가 아무 데도 연결되지 않는다. `wiki-query`의 Standard/Deep 모드가 `index.md`를 기반으로 탐색 대상을 결정하므로, 인덱스 정합성은 조회 품질에 직접 영향을 미친다.
+
+---
+
+### Naming Convention Enforcement
+
+8가지 체크 이외에, 린트는 **네이밍 컨벤션 준수 여부**도 검사한다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+| Element    | Convention           | Example                   |
+|------------|---------------------|---------------------------|
+| Filenames  | Title Case with spaces | `Machine Learning.md`   |
+| Folders    | lowercase with dashes  | `wiki/data-models/`     |
+| Tags       | lowercase, hierarchical| `#domain/architecture`  |
+| Wikilinks  | match filename exactly | `[[Machine Learning]]`  |
+```
+
+네 가지 요소에 대해 각각 다른 규칙이 적용된다.
+
+- **파일명**: Title Case + 공백. `machine-learning.md`가 아니라 `Machine Learning.md`다. Obsidian에서 위키링크가 파일명을 그대로 표시하므로, 가독성을 위한 선택이다.
+- **폴더명**: lowercase + 하이픈. 파일명과 반대 규칙이다. URL 안전성과 CLI 호환성을 고려한 것이다.
+- **태그**: lowercase + 계층 구조. `#domain/architecture`처럼 슬래시로 분류 체계를 만든다.
+- **위키링크**: 파일명과 정확히 일치해야 한다.
+
+마지막 줄이 중요하다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+Filenames must be unique across the vault.
+Wikilinks work without paths only if filenames are unique.
+```
+
+Obsidian 위키링크는 **경로 없이 파일명만으로** 동작한다. `[[Machine Learning]]`이 `wiki/concepts/Machine Learning.md`를 찾으려면, 볼트 전체에서 그 파일명이 유일해야 한다. 파일명 유일성은 위키링크 시스템의 근간이다.
+
+---
+
+### Writing Style Check
+
+린트는 **문체 일관성**도 검사한다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+During lint, flag pages that violate the style guide:
+
+- Not declarative present tense
+  ("X basically does Y" instead of "X does Y")
+- Missing source citations where claims are made
+- Uncertainty not flagged with `> [!gap]`
+- Contradictions not flagged with `> [!contradiction]`
+```
+
+네 가지 문체 규칙이 있다.
+
+1. **선언적 현재형 사용**. "X basically does Y"가 아니라 "X does Y". 부사 `basically`, `essentially` 같은 불필요한 수식어를 제거한다.
+2. **출처 인용 의무**. 주장에 출처가 없으면 플래그한다.
+3. **불확실성 표시**. 확인되지 않은 정보는 `> [!gap]` 콜아웃으로 감싸야 한다.
+4. **모순 표시**. 소스 간 충돌이 있으면 `> [!contradiction]` 콜아웃으로 명시해야 한다.
+
+`[!gap]`과 `[!contradiction]`은 `wiki` 스킬(1편에서 다룬)에서 정의한 커스텀 콜아웃이다. 린트가 이 콜아웃의 적절한 사용을 강제하는 셈이다. 스킬 간 규약이 린트를 통해 실제로 검증되는 구조다.
+
+---
+
+### Dataview Dashboard Creation
+
+린트는 단순 검사에 그치지 않고, **Dataview 대시보드를 생성하거나 갱신**한다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+Create or update `wiki/meta/dashboard.md` with these queries:
+```
+
+대시보드에는 4개의 Dataview 쿼리가 포함된다.
+
+````markdown title="skills/wiki-lint/SKILL.md — 대시보드 쿼리"
+## Recent Activity
+```dataview
+TABLE type, status, updated FROM "wiki" SORT updated DESC LIMIT 15
+```
+
+## Seed Pages (Need Development)
+```dataview
+LIST FROM "wiki" WHERE status = "seed" SORT updated ASC
+```
+
+## Entities Missing Sources
+```dataview
+LIST FROM "wiki/entities" WHERE !sources OR length(sources) = 0
+```
+
+## Open Questions
+```dataview
+LIST FROM "wiki/questions" WHERE answer_quality = "draft" SORT created DESC
+```
+````
+
+각 쿼리의 역할을 보겠다.
+
+- **Recent Activity**: 최근 수정된 15개 페이지를 `type`, `status`, `updated` 열과 함께 테이블로 표시한다. 위키의 "오늘의 활동"을 한눈에 파악할 수 있다.
+- **Seed Pages**: `status = "seed"`인 페이지를 `updated ASC`로 정렬한다. 가장 오래된 씨앗 페이지가 위로 올라온다. 개발이 필요한 페이지의 우선순위 큐다.
+- **Entities Missing Sources**: `wiki/entities/` 폴더에서 `sources` 필드가 비어 있는 엔티티를 나열한다. 출처 없는 엔티티는 신뢰성이 검증되지 않은 것이다.
+- **Open Questions**: `wiki/questions/` 폴더에서 `answer_quality = "draft"`인 질문을 나열한다. `wiki-query`가 파일링한 답변 중 아직 완성되지 않은 것들이다.
+
+Frontmatter Validation 체크와 Dataview 대시보드가 연결되는 지점에 주목해야 한다. 프런트매터의 `status`, `sources`, `answer_quality` 필드가 빠져 있으면 이 쿼리들이 제대로 동작하지 않는다. 6번 체크가 대시보드의 전제 조건인 이유다.
+
+---
+
+### Canvas Map Generation
+
+린트는 **Obsidian Canvas 파일도 자동 생성**한다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+Create or update `wiki/meta/overview.canvas` for a visual domain map:
+```
+
+Canvas 파일의 구조는 JSON이다.
+
+```json title="skills/wiki-lint/SKILL.md — 캔버스 노드 스키마"
+{
+  "nodes": [
+    {
+      "id": "1",
+      "type": "file",
+      "file": "wiki/overview.md",
+      "x": 0, "y": 0,
+      "width": 300, "height": 140,
+      "color": "1"
+    }
+  ],
+  "edges": []
+}
+```
+
+SKILL.md는 캔버스 생성 규칙을 두 가지 명시한다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+Add one node per domain page.
+Connect domains that have significant cross-references.
+Colors map to the CSS scheme: 1=blue, 2=purple, 3=yellow, 4=orange, 5=green, 6=red.
+```
+
+- **도메인당 하나의 노드**: `wiki/domains/` 아래 각 도메인 페이지가 캔버스의 노드가 된다.
+- **교차 참조 기반 연결**: 도메인 간 위키링크가 충분히 많으면 `edges`로 연결한다. 이것은 위키 그래프의 도메인-레벨 축약 뷰다.
+- **색상 매핑**: Obsidian Canvas의 6가지 색상 코드를 사용한다. 1=blue, 2=purple, 3=yellow, 4=orange, 5=green, 6=red.
+
+Obsidian Graph View가 개별 페이지 레벨의 관계를 보여준다면, 이 Canvas 맵은 **도메인 레벨의 관계**를 보여준다. 추상화 수준이 다른 두 가지 시각화를 제공하는 셈이다.
+
+---
+
+## agents/wiki-lint.md 뜯어보기
+
+SKILL.md가 "무엇을 검사할 것인가"를 정의했다면, `agents/wiki-lint.md`는 **"어떻게 실행할 것인가"**를 정의한다.
+
+### Comprehensive Health Check 프로세스
+
+에이전트 파일의 프런트매터부터 보겠다.
+
+```yaml title="agents/wiki-lint.md — 프런트매터"
+name: wiki-lint
+model: sonnet
+maxTurns: 40
+tools: Read, Write, Glob, Grep, Bash
+```
+
+핵심 설정이 세 가지 있다.
+
+- **model: sonnet**: Claude Sonnet 모델을 사용한다. 린트는 창의적 생성보다 **패턴 매칭과 규칙 적용**이 핵심이므로, 비용 대비 효율이 좋은 Sonnet이 적합하다.
+- **maxTurns: 40**: 최대 40턴까지 실행한다. 볼트 전체를 스캔해야 하므로 상당한 턴 수가 필요하다. `wiki-ingest` 에이전트도 비슷한 수준이다.
+- **tools: Read, Write, Glob, Grep, Bash**: 5가지 도구를 사용한다. `Glob`으로 파일을 탐색하고, `Grep`으로 내용을 검색하고, `Read`로 파일을 읽고, `Write`로 리포트를 작성하고, `Bash`로 파일 시스템 작업을 수행한다.
+
+에이전트의 자기 소개도 역할을 명확히 한다.
+
+```markdown title="agents/wiki-lint.md"
+You are a wiki health specialist. Your job is to scan the vault
+and produce a comprehensive lint report.
+```
+
+"health specialist"라는 표현이 인상적이다. 에이전트에 **전문가 역할**을 부여하면 해당 도메인에 집중하는 행동이 유도된다.
+
+---
+
+### 10가지 에이전트 검사 항목
+
+에이전트의 실행 프로세스는 명확한 단계로 구성된다.
+
+```markdown title="agents/wiki-lint.md"
+1. Read `wiki/index.md` to get the full list of pages.
+2. For each wiki page, check:
+   - Frontmatter has required fields (type, status, created, updated, tags)
+   - All wikilinks in the page resolve to real files
+   - All headings have content underneath them
+   - Page is linked from at least one other page (no orphans)
+3. Scan for concepts and entities mentioned in multiple pages
+   but lacking their own page.
+4. Scan for unlinked mentions
+   (entity names appearing without `[[` brackets).
+5. Check `wiki/index.md` for stale entries pointing to
+   renamed/deleted files.
+6. Identify pages with status `seed` that have not been updated
+   in over 30 days.
+```
+
+SKILL.md의 8가지 체크와 비교하면, 에이전트는 **실행 관점에서 재구성**한 것임을 알 수 있다.
+
+| 단계 | 에이전트 검사 항목 | SKILL.md 대응 |
+|------|---------------------|---------------|
+| 1 | `index.md` 전체 페이지 목록 로드 | (진입점) |
+| 2-a | Frontmatter 필수 필드 확인 | #6 Frontmatter gaps |
+| 2-b | 위키링크가 실제 파일을 가리키는지 검증 | #2 Dead links |
+| 2-c | 헤딩 아래 내용 존재 확인 | #7 Empty sections |
+| 2-d | 다른 페이지에서 링크하는지 확인 | #1 Orphan pages |
+| 3 | 여러 페이지에서 언급되지만 페이지 없는 개념 | #4 Missing pages |
+| 4 | `[[ ]]` 없이 텍스트로만 언급된 엔티티 | #5 Missing cross-references |
+| 5 | `index.md`의 삭제/이름변경 참조 확인 | #8 Stale index entries |
+| 6 | 30일 이상 seed 상태인 페이지 | (에이전트 고유) |
+
+주목할 점이 두 가지 있다.
+
+**첫째, 2단계에서 4가지 검사를 페이지 단위로 묶었다.** SKILL.md는 체크 유형별로 나열하지만, 에이전트는 "각 페이지에 대해(For each wiki page)" 루프를 돌면서 한 번에 4가지를 검사한다. 이 방식이 효율적이다. 파일을 한 번만 읽고 4가지를 동시에 체크할 수 있기 때문이다.
+
+**둘째, SKILL.md에 없는 항목이 하나 추가되었다.** 6번 "Stale Seed Pages" 검사는 에이전트 고유 항목이다. `status = "seed"`인 페이지가 30일 이상 방치되면 플래그한다. 이것은 SKILL.md의 Stale Claims(#3)와 다른 차원의 "stale"이다. 내용의 정확성이 아니라 **개발 진행 상태의 정체**를 감지한다.
+
+반면 SKILL.md의 #3 Stale Claims는 에이전트에 명시적으로 등장하지 않는다. 소스 간 모순 탐지는 단순 패턴 매칭으로 자동화하기 어렵기 때문에, 에이전트가 다른 체크를 수행하는 과정에서 부수적으로 발견하는 방식이라고 해석할 수 있다.
+
+---
+
+### Structured Lint Report -- Critical/Warnings/Suggestions
+
+에이전트의 리포트 구조는 SKILL.md의 것과 다르다. **3단계 심각도 분류**를 도입한다.
+
+```markdown title="agents/wiki-lint.md — 리포트 구조"
+## Summary
+- Pages scanned: N
+- Issues found: N (N critical, N warnings, N suggestions)
+
+## Critical (must fix)
+[dead links, missing required frontmatter]
+
+## Warnings (should fix)
+[orphan pages, stale claims, large pages over 300 lines]
+
+## Suggestions (worth considering)
+[missing pages for frequently mentioned concepts, cross-reference gaps]
+```
+
+SKILL.md의 리포트가 **체크 유형별로 나열**하는 반면, 에이전트 리포트는 **심각도별로 분류**한다. 이 차이가 중요하다.
+
+- **Critical (must fix)**: dead links, 필수 프런트매터 누락. 위키의 기본 기능(탐색, 쿼리)에 직접적으로 영향을 미치는 문제다.
+- **Warnings (should fix)**: 고아 페이지, 구식 주장, 300줄 초과 대형 페이지. 기능은 동작하지만 품질이 저하되는 문제다. 여기서 "300줄 초과"라는 기준은 SKILL.md에는 없는, 에이전트가 추가한 규칙이다.
+- **Suggestions (worth considering)**: missing pages, cross-reference gaps. "있으면 좋지만 없어도 당장 문제는 없는" 개선 제안이다.
+
+이 분류 체계의 장점은 **조치 우선순위가 명확하다**는 것이다. 린트 결과가 50건이더라도 Critical만 먼저 해결하면 위키의 핵심 기능은 보장된다.
+
+리포트의 각 항목에는 세 가지 정보가 포함된다.
+
+```markdown title="agents/wiki-lint.md"
+List each issue with:
+1. The affected page (wikilink)
+2. The specific problem
+3. A suggested fix
+```
+
+"영향받는 페이지 + 구체적 문제 + 수정 제안"이라는 3요소 구조다. 단순히 "문제가 있다"가 아니라 "어디서, 무엇이, 어떻게 고칠 수 있는지"를 제시한다.
+
+마지막으로, 에이전트는 SKILL.md와 달리 **자동 수정을 하지 않는다.**
+
+```markdown title="agents/wiki-lint.md"
+Do not auto-fix anything. Report only.
+The user reviews the report and decides what to fix.
+```
+
+SKILL.md는 "안전한 자동 수정"과 "리뷰 필요한 수정"을 구분하여 일부 자동화를 허용하지만, 에이전트는 **리포트만 생성**한다. 이 보수적 접근은 에이전트 실행이 사용자 개입 없이 진행되기 때문이다. SKILL.md에서 정의한 자동 수정 분류는 다음과 같다.
+
+```markdown title="skills/wiki-lint/SKILL.md"
+Safe to auto-fix:
+- Adding missing frontmatter fields with placeholder values
+- Creating stub pages for missing entities
+- Adding wikilinks for unlinked mentions
+
+Needs review before fixing:
+- Deleting orphan pages (they might be intentionally isolated)
+- Resolving contradictions (requires human judgment)
+- Merging duplicate pages
+```
+
+"Safe to auto-fix"로 분류된 항목은 **비파괴적이고 되돌리기 쉬운** 작업이다. 반면 "Needs review"는 **되돌리기 어렵거나 판단이 필요한** 작업이다. 특히 "고아 페이지 삭제"가 리뷰 대상인 이유가 명시되어 있다. "they might be intentionally isolated" -- 의도적으로 독립시킨 페이지일 수 있기 때문이다.
+
+---
+
+## 다른 스킬과의 연결점
+
+`wiki-lint`는 독립적으로 동작하지만, 다른 스킬과 긴밀하게 연결된다.
+
+**wiki-ingest와의 관계.** `wiki-ingest`가 생성한 페이지의 품질을 `wiki-lint`가 사후 검증한다. 인제스트 시 생성된 스텁 페이지의 빈 섹션, 프런트매터 누락, 교차 참조 미비를 린트가 잡아낸다. "10~15회 인제스트마다 린트 실행"이라는 주기도 이 관계에서 나온다.
+
+**wiki-query와의 관계.** `wiki-query`의 Standard/Deep 모드는 `index.md`를 진입점으로 사용한다. 린트의 Stale Index Entries 체크가 인덱스 정합성을 보장하므로, 조회 품질에 직접 기여한다. Dataview 대시보드의 쿼리들도 프런트매터 필드에 의존하므로, Frontmatter Validation이 대시보드의 전제 조건이 된다.
+
+**wiki 오케스트레이터와의 관계.** 1편에서 다룬 커스텀 콜아웃(`[!gap]`, `[!contradiction]`, `[!stale]`)의 사용을 Writing Style Check가 강제한다. 오케스트레이터가 정의한 규약을 린트가 실행 시점에서 검증하는 구조다.
+
+**canvas 스킬과의 관계.** Canvas Map Generation은 린트의 부산물로 캔버스를 생성하지만, canvas 스킬(9편에서 다룰 예정)은 사용자 요청에 의해 캔버스를 관리한다. 린트가 생성한 `overview.canvas`를 canvas 스킬이 이후에 확장하는 흐름이 가능하다.
+
+이처럼 `wiki-lint`는 위키 시스템의 **품질 게이트** 역할을 한다. 입력(ingest) → 축적 → 조회(query) 사이클에서 축적된 지식의 무결성을 보증하는 핵심 스킬이다.

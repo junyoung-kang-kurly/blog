@@ -1,0 +1,569 @@
+---
+title: "claude-obsidian 스킬 뜯어보기 (8): autoresearch"
+description: "3라운드 자동 검색 루프, 신뢰도 점수, 도메인별 규칙, program.md 설정을 코드 레벨에서 분석한다."
+date: "2026-04-11"
+published: true
+tags: ["claude-obsidian", "obsidian", "autoresearch", "autonomous-agent"]
+series: "claude-obsidian-skills"
+seriesOrder: 8
+---
+
+## 이 스킬이 하는 일
+
+`autoresearch`는 주제 하나를 받아 **웹 검색 → 소스 페칭 → 합성 → 위키 페이지 작성**을 자동으로 반복하는 자율 연구 에이전트다. Karpathy의 autoresearch 패턴에서 영감을 받았다: `program.md`라는 설정 파일이 연구 목표와 제약 조건을 정의하고, 에이전트가 루프를 돌며 depth에 도달하면 멈춘다. 결과물은 채팅 응답이 아니라 **위키 페이지**로 직접 파일링된다.
+
+사용자가 `/autoresearch LLM fine-tuning best practices`라고 입력하면, Claude가 주제를 분해하고, 여러 각도에서 검색하고, 모순을 확인하고, 소스/개념/엔티티/합성 페이지를 위키에 생성한다. 한 세션에 최대 3라운드, 15페이지, 라운드당 5소스까지 처리한다. 이 모든 제약은 `program.md`에서 사용자가 직접 조정할 수 있다.
+
+## 파일 구조
+
+```text title="autoresearch 스킬 파일 트리"
+claude-obsidian/
+├── skills/autoresearch/
+│   ├── SKILL.md                    # 스킬 본체 — 연구 루프, 파일링 규칙, 합성 구조
+│   └── references/
+│       └── program.md              # 연구 프로그램 설정 — 목표, 제약, 도메인 규칙
+└── commands/
+    └── autoresearch.md             # /autoresearch 커맨드 진입점
+```
+
+3개 파일로 구성된다. SKILL.md(174줄)가 연구 루프의 전체 흐름과 파일링 규칙을 정의하고, program.md(76줄)가 사용자 설정 가능한 제약 조건을 담는다. commands/autoresearch.md(17줄)는 커맨드 진입점으로, 스킬 로드와 vault 확인을 처리한다. 이전 스킬들과 비교하면 wiki(600줄+)보다는 작지만 defuddle(82줄)보다 훨씬 크다 — 자율 에이전트의 행동 규칙을 정의해야 하기 때문이다.
+
+---
+
+## SKILL.md 뜯어보기
+
+프론트매터부터 보자.
+
+```yaml title="skills/autoresearch/SKILL.md"
+---
+name: autoresearch
+description: >
+  Autonomous iterative research loop. Takes a topic, runs web searches, fetches sources,
+  synthesizes findings, and files everything into the wiki as structured pages.
+  Based on Karpathy's autoresearch pattern: program.md configures objectives and constraints,
+  the loop runs until depth is reached, output goes directly into the knowledge base.
+  Triggers on: "/autoresearch", "autoresearch", "research [topic]", "deep dive into [topic]",
+  "investigate [topic]", "find everything about [topic]", "research and file",
+  "go research", "build a wiki on".
+allowed-tools: Read Write Edit Glob Grep WebFetch WebSearch
+---
+```
+
+`allowed-tools`가 6개로 이 시리즈에서 가장 많다. `WebFetch`와 `WebSearch`가 핵심이다 — 다른 스킬에는 없는 웹 접근 도구다. defuddle이 `Read Bash`만 쓰는 것과 대조적이다. autoresearch는 외부 CLI 래퍼가 아니라 **Claude 자체가 연구 에이전트로 동작**하기 때문에, 검색/페칭/읽기/쓰기를 모두 직접 수행한다.
+
+트리거 키워드도 풍부하다: `research [topic]`, `deep dive into [topic]`, `investigate [topic]`, `find everything about [topic]`, `go research`, `build a wiki on`. 사용자의 자연어 의도를 폭넓게 포착한다.
+
+---
+
+### Autonomous Research Loop
+
+SKILL.md의 첫 번째 단락이 스킬의 정체성을 한 문장으로 정의한다.
+
+```markdown title="skills/autoresearch/SKILL.md"
+You are a research agent. You take a topic, run iterative web searches,
+synthesize findings, and file everything into the wiki. The user gets
+wiki pages, not a chat response.
+```
+
+"The user gets wiki pages, not a chat response" — 이 문장이 autoresearch의 핵심 철학이다. 일반적인 LLM 대화에서는 답변이 채팅 버블에 나타났다가 세션이 끝나면 사라진다. autoresearch는 결과를 위키 페이지로 파일링하여 **영구적 산출물**로 만든다. 1편에서 다룬 Knowledge Compounding 패턴의 자동화 버전이다.
+
+`references/program.md`를 시작 전에 반드시 읽으라는 지시도 있다.
+
+```markdown title="skills/autoresearch/SKILL.md"
+Read `references/program.md` to load the research objectives and constraints.
+This file is user-configurable. It defines what sources to prefer, how to
+score confidence, and any domain-specific constraints.
+```
+
+program.md는 "사용자가 설정 가능"하다고 명시한다. 이는 autoresearch가 **하드코딩된 에이전트가 아니라 설정 가능한 에이전트**라는 의미다. 연구 스타일, 출처 선호도, 도메인 규칙을 사용자가 직접 바꿀 수 있다.
+
+---
+
+### Three-Round Search -- 광범위 → 갭 → 검증
+
+연구 루프의 3라운드 구조가 의사코드로 정의되어 있다.
+
+```text title="skills/autoresearch/SKILL.md"
+Input: topic (from user command)
+
+Round 1. Broad search
+1. Decompose topic into 3-5 distinct search angles
+2. For each angle: run 2-3 WebSearch queries
+3. For top 2-3 results per angle: WebFetch the page
+4. Extract from each: key claims, entities, concepts, open questions
+
+Round 2. Gap fill
+5. Identify what's missing or contradicted from Round 1
+6. Run targeted searches for each gap (max 5 queries)
+7. Fetch top results for each gap
+
+Round 3. Synthesis check (optional, if gaps remain)
+8. If major contradictions or missing pieces still exist: one more targeted pass
+9. Otherwise: proceed to filing
+
+Max rounds: 3 (as set in program.md). Stop when depth is reached or max rounds hit.
+```
+
+각 라운드의 역할이 명확하게 분리되어 있다.
+
+**Round 1 (Broad search):** 주제를 여러 각도에서 광범위하게 조사한다. 한 가지 시각에 편향되지 않도록 3-5개 검색 각도로 분해하고, 각 각도마다 2-3개 쿼리를 실행한다. 최대 15개 쿼리, 15개 페이지를 처리하는 셈이다.
+
+**Round 2 (Gap fill):** 1라운드에서 빠졌거나 모순된 부분만 집중 검색한다. "What's missing or contradicted"가 판단 기준이다. 최대 5개 쿼리로 제한되어 있어 1라운드보다 범위가 좁다.
+
+**Round 3 (Synthesis check):** 선택적이다. "if gaps remain"일 때만 실행된다. 대부분의 연구 주제는 2라운드면 충분하다. 3라운드까지 가는 것은 출처 간 심각한 모순이 있거나 핵심 정보가 여전히 빠져 있을 때다.
+
+마지막 줄이 중요하다: "Stop when depth is reached or max rounds hit." 두 가지 종료 조건이 있다 — 충분한 depth에 도달했거나, 3라운드를 모두 소진했거나. 이 종료 조건이 자율 에이전트의 무한 루프를 방지한다.
+
+---
+
+### Topic Decomposition -- 3-5개 검색 각도
+
+Round 1의 첫 번째 단계가 주제 분해(Topic Decomposition)다.
+
+```text title="skills/autoresearch/SKILL.md"
+1. Decompose topic into 3-5 distinct search angles
+2. For each angle: run 2-3 WebSearch queries
+```
+
+왜 3-5개인가? 너무 적으면(1-2개) 편향된 결과가 나온다. 너무 많으면(6개 이상) 라운드 하나에서 소진하는 쿼리와 토큰이 과도해진다. 3-5개는 다양성과 효율성의 균형점이다.
+
+예를 들어 "LLM fine-tuning best practices"라는 주제라면, 검색 각도가 이렇게 분해될 수 있다:
+
+1. fine-tuning 기법 (LoRA, QLoRA, full fine-tuning 비교)
+2. 데이터 준비 및 품질 (학습 데이터 큐레이션, 합성 데이터)
+3. 평가 방법론 (벤치마크, human eval, automated eval)
+4. 실전 사례 (기업 적용 사례, 비용 분석)
+5. 최근 동향 (2024-2025년 새로운 접근법)
+
+각 각도에서 2-3개 쿼리를 실행하면 최소 6개, 최대 15개의 검색이 이루어진다. 검색 결과 중 상위 2-3개 페이지를 WebFetch하고, 각 페이지에서 "key claims, entities, concepts, open questions"를 추출한다. 추출 항목이 4가지로 고정되어 있어, 에이전트가 무엇을 찾아야 하는지 명확하다.
+
+---
+
+### Filing Results -- Sources, Concepts, Entities
+
+연구가 끝나면 4종류의 위키 페이지를 생성한다.
+
+```markdown title="skills/autoresearch/SKILL.md"
+**wiki/sources/**. One page per major reference found
+- Use source frontmatter (type, source_type, author, date_published, url,
+  confidence, key_claims)
+- Body: summary of the source, what it contributes to the topic
+
+**wiki/concepts/**. One page per significant concept extracted
+- Only create a page if the concept is substantive enough to stand alone
+- Check the index first: update existing concept pages rather than
+  creating duplicates
+
+**wiki/entities/**. One page per significant person, org, or product identified
+- Check the index first: update existing entity pages
+
+**wiki/questions/**. One synthesis page titled "Research: [Topic]"
+- This is the master synthesis. Everything comes together here.
+```
+
+4가지 산출물의 역할이 분명하다:
+
+**Sources** — 원본 출처의 요약과 메타데이터. 프론트매터에 `confidence`, `key_claims` 필드가 있어 나중에 위키 전체의 출처 신뢰도를 추적할 수 있다.
+
+**Concepts** — 독립적으로 설명할 가치가 있는 개념. "substantive enough to stand alone"이라는 기준이 있다. 사소한 용어까지 페이지로 만들지 않는다. 그리고 **인덱스를 먼저 확인**하여 기존 페이지가 있으면 업데이트한다. 중복 페이지 방지 전략이다.
+
+**Entities** — 사람, 조직, 제품. 개념과 마찬가지로 인덱스를 먼저 확인한다.
+
+**Synthesis** — 모든 것을 하나로 모으는 마스터 페이지. `wiki/questions/` 폴더에 "Research: [Topic]"이라는 제목으로 생성된다. 이 페이지가 해당 연구 세션의 **진입점**이 된다.
+
+---
+
+### Synthesis Page 구조
+
+합성 페이지의 전체 구조가 템플릿으로 정의되어 있다.
+
+```yaml title="skills/autoresearch/SKILL.md"
+---
+type: synthesis
+title: "Research: [Topic]"
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+tags:
+  - research
+  - [topic-tag]
+status: developing
+related:
+  - "[[Every page created in this session]]"
+sources:
+  - "[[wiki/sources/Source 1]]"
+  - "[[wiki/sources/Source 2]]"
+---
+```
+
+프론트매터에 `type: synthesis`가 있다. 1편에서 다룬 프론트매터 체계에서 `synthesis`는 별도의 type으로, 단일 소스 요약이 아니라 **여러 소스를 교차 분석한 결과물**임을 표시한다. `status: developing`으로 시작하여, 추가 연구가 진행되면 업데이트될 수 있다는 것을 나타낸다.
+
+`related` 필드에 "Every page created in this session"이 들어간다. 한 번의 autoresearch 세션에서 생성된 모든 소스/개념/엔티티 페이지가 여기에 연결된다. Obsidian의 그래프 뷰에서 합성 페이지를 중심으로 관련 페이지들이 클러스터를 형성하게 된다.
+
+본문 섹션은 7개로 구성된다:
+
+```markdown title="skills/autoresearch/SKILL.md"
+## Overview
+[2-3 sentence summary of what was found]
+
+## Key Findings
+- Finding 1 (Source: [[Source Page]])
+
+## Key Entities
+- [[Entity Name]]: role/significance
+
+## Key Concepts
+- [[Concept Name]]: one-line definition
+
+## Contradictions
+- [[Source A]] says X. [[Source B]] says Y.
+  [Brief note on which is more credible and why]
+
+## Open Questions
+- [Question that research didn't fully answer]
+
+## Sources
+- [[Source 1]]: author, date
+```
+
+**Contradictions** 섹션이 주목할 만하다. 단순히 "모순이 있다"고만 기록하는 게 아니라, "어느 쪽이 더 신뢰할 수 있고 그 이유는 무엇인가"까지 적는다. 이는 program.md의 Confidence Scoring과 연결되는 부분이다.
+
+**Open Questions** 섹션은 연구의 한계를 명시한다. 3라운드 안에 답을 찾지 못한 질문이 여기에 기록된다. 이 질문들은 다음 autoresearch 세션의 시작점이 될 수 있다.
+
+---
+
+### Constraints -- Max Rounds, Confidence Scoring
+
+SKILL.md 마지막에 제약 조건이 요약되어 있다.
+
+```markdown title="skills/autoresearch/SKILL.md"
+Follow the limits in `references/program.md`:
+- Max rounds (default: 3)
+- Max pages per session (default: 15)
+- Confidence scoring rules
+- Source preference rules
+
+If a constraint conflicts with completeness, respect the constraint and note
+what was left out in the Open Questions section.
+```
+
+마지막 문장이 핵심이다: "respect the constraint and note what was left out." 제약과 완전성이 충돌하면 **제약을 우선**한다. 빠진 내용은 Open Questions에 기록한다. 이 원칙이 자율 에이전트의 예측 가능성을 보장한다 — 에이전트가 "좀 더 완벽하게 조사하겠다"며 무한 루프에 빠지는 것을 방지한다.
+
+파일링 후 3가지 후처리가 실행된다:
+
+```markdown title="skills/autoresearch/SKILL.md"
+1. Update `wiki/index.md`. Add all new pages to the right sections
+2. Append to `wiki/log.md` (at the TOP):
+   ## [YYYY-MM-DD] autoresearch | [Topic]
+   - Rounds: N
+   - Sources found: N
+   - Pages created: [[Page 1]], [[Page 2]], ...
+   - Synthesis: [[Research: Topic]]
+   - Key finding: [one sentence]
+3. Update `wiki/hot.md` with the research summary
+```
+
+index, log, hot 세 파일 모두 업데이트한다. log.md에 라운드 수, 소스 수, 생성된 페이지 목록이 기록되어, 나중에 연구 이력을 추적할 수 있다. hot.md 업데이트는 다음 세션에서 최근 연구 맥락을 즉시 파악할 수 있게 한다.
+
+사용자에게 보고하는 형식도 정해져 있다:
+
+```text title="skills/autoresearch/SKILL.md"
+Research complete: [Topic]
+
+Rounds: N | Searches: N | Pages created: N
+
+Created:
+  wiki/questions/Research: [Topic].md (synthesis)
+  wiki/sources/[Source 1].md
+  wiki/concepts/[Concept 1].md
+  wiki/entities/[Entity 1].md
+
+Key findings:
+- [Finding 1]
+- [Finding 2]
+- [Finding 3]
+
+Open questions filed: N
+```
+
+라운드 수, 검색 수, 생성된 페이지 수를 한눈에 보여주고, 핵심 발견 사항과 미해결 질문 수까지 보고한다. 사용자가 위키를 열어보지 않아도 연구 결과의 개요를 파악할 수 있다.
+
+---
+
+## program.md 뜯어보기
+
+program.md는 autoresearch 루프의 **행동 설정 파일**이다. SKILL.md가 "무엇을 하는가"를 정의한다면, program.md는 "어떻게 하는가"를 설정한다.
+
+```markdown title="skills/autoresearch/references/program.md"
+# Research Program
+
+This file configures the autoresearch loop. Edit it to match your domain
+and research style. The autoresearch skill reads it before every run.
+```
+
+"Edit it to match your domain and research style" — 이 파일은 사용자가 직접 수정하도록 설계되어 있다. AI 연구자, 비즈니스 분석가, 의학 연구자가 각자의 도메인에 맞게 조정할 수 있다.
+
+---
+
+### Search Objectives -- 권위 출처 전략
+
+기본 연구 목표 6가지가 정의되어 있다.
+
+```markdown title="skills/autoresearch/references/program.md"
+Default objectives for every research session:
+
+- Find authoritative sources (prefer: .edu, peer-reviewed papers,
+  official documentation, primary sources, established publications)
+- Extract key entities (people, organizations, products, tools)
+- Extract key concepts and frameworks
+- Note contradictions between sources
+- Identify open questions and research gaps
+- Prefer sources from the last 2 years unless the topic is foundational
+```
+
+첫 번째 목표의 괄호 안이 핵심이다: `.edu`, `peer-reviewed papers`, `official documentation`, `primary sources`, `established publications`. 이 우선순위는 "위키피디아에서 빠르게 복사하기"와는 정반대 방향이다. 1차 출처(primary sources)와 공식 문서를 우선한다.
+
+마지막 목표도 중요하다: "최근 2년 이내 소스를 선호하되, 기초적인 주제라면 예외를 둔다." `TCP/IP 프로토콜` 같은 기초 주제는 10년 된 RFC 문서가 더 권위 있을 수 있다. 반면 `LLM 파인튜닝`은 2년 전 자료도 구식이 될 수 있다. 이 구분을 에이전트가 판단하도록 위임한다.
+
+---
+
+### Confidence Scoring System -- high/medium/low
+
+모든 주장에 신뢰도 레이블을 붙이는 규칙이다.
+
+```markdown title="skills/autoresearch/references/program.md"
+Label every claim with confidence when filing:
+
+- **high**: multiple independent authoritative sources agree
+- **medium**: single good source, or sources partially agree
+- **low**: speculation, opinion pieces, single informal source,
+  or claim not verified
+```
+
+3단계 시스템이 명확하다:
+
+- **high** — "multiple independent authoritative sources agree." 핵심 단어는 `independent`와 `authoritative`다. 같은 원본을 재인용한 여러 기사는 "multiple independent"가 아니다. 서로 독립적인 권위 있는 출처들이 동의해야 한다.
+- **medium** — "single good source, or sources partially agree." 좋은 출처가 하나이거나, 여러 출처가 부분적으로만 일치할 때. 이 등급이 가장 흔할 것이다.
+- **low** — 추측, 의견 기사, 단일 비공식 출처, 또는 미검증 주장. Reddit이나 소셜 미디어 출처는 자동으로 이 등급에 해당한다.
+
+---
+
+### Source Dating -- 3년+ 구식 표시
+
+신뢰도 스코어링과 짝을 이루는 규칙이다.
+
+```markdown title="skills/autoresearch/references/program.md"
+Always note the source date for factual claims. Mark claims from sources
+older than 3 years as potentially stale.
+```
+
+"potentially stale" — 3년 이상 된 소스의 주장은 잠재적으로 구식이라고 표시한다. 구식이라고 무조건 틀린 것은 아니다. 하지만 독자에게 "이 정보가 얼마나 최신인가"를 판단할 근거를 제공한다.
+
+이 규칙은 Search Objectives의 "최근 2년 이내 선호" 규칙과 다른 차원이다. 검색 단계에서는 최신 소스를 우선하되, 파일링 단계에서는 오래된 소스도 포함하되 날짜를 명시한다. 정보를 버리는 게 아니라 **맥락을 추가**하는 것이다.
+
+---
+
+### Loop Constraints -- rounds, pages, sources 한도
+
+연구 루프의 물리적 한도를 설정한다.
+
+```markdown title="skills/autoresearch/references/program.md"
+- Max search rounds per topic: **3**
+- Max wiki pages created per session: **15**
+- Max sources fetched per round: **5**
+- If max pages is reached before the loop completes: file what you have,
+  note what was skipped in Open Questions
+```
+
+세 가지 한도가 서로 다른 차원을 제약한다:
+
+- **3 라운드** — 연구의 깊이를 제한한다. 광범위 → 갭 → 검증 이상은 하지 않는다.
+- **15 페이지** — 한 세션의 산출물 양을 제한한다. 소스 + 개념 + 엔티티 + 합성 페이지를 합산한다.
+- **라운드당 5 소스** — 각 라운드에서 페칭하는 소스 수를 제한한다. 3라운드 × 5소스 = 최대 15소스.
+
+마지막 줄이 SKILL.md의 제약 우선 원칙과 일관된다: 15페이지 한도에 먼저 도달하면 루프가 끝나지 않았더라도 **가진 것을 파일링하고 나머지는 Open Questions에 기록**한다.
+
+이 숫자들은 실용적인 균형을 반영한다. 라운드당 5소스를 WebFetch하면 각 소스가 평균 3,000-5,000 토큰이라고 가정할 때 15,000-25,000 토큰을 소비한다. 3라운드면 최대 75,000 토큰. Claude의 컨텍스트 윈도우 안에서 검색/합성/파일링을 모두 처리하려면 이 정도가 현실적 한계다.
+
+---
+
+### Output Style -- 선언적 현재형, 200행 이하
+
+파일링할 때의 글쓰기 스타일을 규정한다.
+
+```markdown title="skills/autoresearch/references/program.md"
+- Declarative, present tense
+- Cite every non-obvious claim: `(Source: [[Page]])`
+- Short pages: under 200 lines. Split if longer.
+- No hedging language ("it seems", "perhaps", "might be")
+- Flag uncertainty explicitly: `> [!gap] This claim needs verification.`
+```
+
+5가지 규칙이 모두 **위키 품질**을 높이는 방향이다.
+
+"Declarative, present tense" — "X seems to be Y"가 아니라 "X is Y"로 쓴다. hedging을 제거하면 위키 페이지가 명확해진다. 불확실한 정보는 hedging으로 흐리지 않고, `[!gap]` callout으로 명시적으로 표시한다.
+
+"Cite every non-obvious claim" — 출처 없는 주장을 허용하지 않는다. `(Source: [[Page]])` 형식으로 위키링크를 걸어, 독자가 원본 소스 페이지로 바로 이동할 수 있게 한다.
+
+"Short pages: under 200 lines. Split if longer." — 200줄 이상이면 분할한다. 위키 페이지가 지나치게 길어지면 가독성이 떨어지고, 위키 쿼리(4편의 wiki-query)에서 관련 내용을 찾기도 어려워진다. 짧은 페이지가 위키의 원자성(atomicity)을 보장한다.
+
+---
+
+### Explicit Uncertainty -- [!gap] callout
+
+불확실성 표현의 구체적 방법이다.
+
+```markdown title="skills/autoresearch/references/program.md"
+Flag uncertainty explicitly: `> [!gap] This claim needs verification.`
+```
+
+Obsidian의 callout 문법을 활용한다. `[!gap]`은 1편에서 다룬 커스텀 callout 타입 중 하나로, CSS 스니펫으로 시각적으로 구분된다. 위키 페이지를 읽을 때 검증이 필요한 주장이 시각적으로 눈에 띄게 된다.
+
+hedging 언어를 금지하는 대신 callout을 사용하는 이유가 있다. "it seems"이 섞인 문장은 얼마나 불확실한지 모호하다. callout은 "이 주장은 검증이 필요하다"고 **이진적으로** 표시한다. 모호한 불확실성 대신 명시적인 불확실성이다.
+
+---
+
+### Domain-Specific Rules -- AI/Business/Medical
+
+도메인별 소스 선호도와 주의사항이다.
+
+```markdown title="skills/autoresearch/references/program.md"
+For AI/tech research:
+- Prefer: arXiv, official GitHub repos, official product documentation,
+  Hacker News discussions with high karma
+- Note: LLM benchmarks are often gamed: treat leaderboard claims as
+  low confidence unless independently verified
+
+For business/market research:
+- Prefer: company filings, Crunchbase, Bloomberg,
+  verified industry reports
+- Flag: press releases as low confidence without
+  independent verification
+
+For medical/health research:
+- Prefer: PubMed, Cochrane reviews, peer-reviewed clinical trials
+- Always note: sample size, study type (RCT vs observational),
+  and recency
+```
+
+세 도메인에 대해 구체적인 지침이 있다.
+
+**AI/tech:** arXiv 프리프린트, 공식 GitHub 레포, 공식 문서, 고카르마 Hacker News 토론을 선호한다. 특히 "LLM benchmarks are often gamed"라는 경고가 실용적이다. 리더보드 순위를 high confidence로 기록하면 안 되고, 독립적으로 검증되지 않은 벤치마크 주장은 low confidence로 처리한다.
+
+**Business/market:** SEC 공시(company filings), Crunchbase, Bloomberg, 검증된 산업 보고서를 선호한다. 보도자료(press releases)는 독립적 검증 없이는 low confidence로 처리한다. 보도자료는 기업이 자신에게 유리하게 작성하는 1차 자료이므로, 팩트 체크가 필요하다.
+
+**Medical/health:** PubMed, Cochrane 리뷰, 피어 리뷰된 임상 시험을 선호한다. 그리고 반드시 기록해야 하는 3가지: 샘플 크기, 연구 유형(RCT vs 관찰 연구), 최신성. 의학 연구에서 "50명 대상 관찰 연구"와 "5,000명 대상 이중맹검 RCT"는 신뢰도가 전혀 다르다.
+
+이 섹션은 `[Add domain-specific instructions here. Examples:]`라는 주석으로 시작한다. 제공된 3가지 도메인은 **예시**이며, 사용자가 자신의 도메인(법률, 교육, 엔지니어링 등)에 맞는 규칙을 추가할 수 있다.
+
+---
+
+### Excluded Source Types
+
+high-confidence 출처로 인용해서는 안 되는 소스 유형이다.
+
+```markdown title="skills/autoresearch/references/program.md"
+Do not cite as high-confidence sources:
+- Reddit posts or forums (use as pointers to primary sources only)
+- Social media posts
+- Undated web pages
+- Sources that don't cite their own claims
+```
+
+4가지 제외 유형 모두 합리적이다:
+
+- **Reddit/포럼** — "use as pointers to primary sources only." 완전히 무시하는 게 아니라, 1차 출처를 찾기 위한 **포인터**로만 활용한다. Reddit에서 누군가 논문 링크를 공유하면, 그 논문이 출처이지 Reddit 포스트가 출처가 아니다.
+- **소셜 미디어** — 트위터/X, 링크드인 포스트 등. 주장의 근거로 사용할 수 없다.
+- **날짜 없는 웹페이지** — 언제 작성되었는지 알 수 없으면 최신성을 판단할 수 없다.
+- **자체 인용이 없는 출처** — 주장을 하면서 근거를 제시하지 않는 소스. 이런 소스를 인용하면 "출처 없는 주장을 출처 삼는 꼴"이 된다.
+
+이 제외 목록은 Confidence Scoring System과 연동된다. 제외 목록에 해당하는 소스는 high confidence를 줄 수 없고, 최대 low confidence까지만 허용된다.
+
+---
+
+## commands/autoresearch.md 뜯어보기
+
+커맨드 파일은 17줄로 짧지만, `/autoresearch` 호출의 진입점과 전후 처리를 정의한다.
+
+### /autoresearch 호출 흐름
+
+```yaml title="commands/autoresearch.md"
+---
+description: Run an autonomous research loop on a topic. Searches the web,
+  synthesizes findings, and files everything into the wiki as structured pages.
+---
+```
+
+프론트매터의 `description`이 Claude Code에게 이 커맨드가 언제 실행되어야 하는지 알려준다.
+
+```markdown title="commands/autoresearch.md"
+Read the `autoresearch` skill. Then run the research loop.
+
+Usage:
+- `/autoresearch [topic]` — research a specific topic
+- `/autoresearch` — ask "What topic should I research?"
+```
+
+두 가지 호출 방식이 있다. 주제를 지정하면 바로 시작하고, 주제 없이 호출하면 "무엇을 연구할까요?"라고 물어본다. 주제 없는 호출은 대화형 워크플로우에서 유용하다 — 사용자가 먼저 `/autoresearch`를 입력하고, Claude의 질문에 답하면서 주제를 구체화할 수 있다.
+
+---
+
+### Program Constraints Loading
+
+연구 시작 전 반드시 program.md를 로드한다.
+
+```markdown title="commands/autoresearch.md"
+Before starting, read `skills/autoresearch/references/program.md` to load
+the research constraints and objectives.
+```
+
+이 지시가 commands/autoresearch.md와 SKILL.md 양쪽에 반복된다. 중복처럼 보이지만, 커맨드 파일이 스킬 파일보다 먼저 로드되는 경우를 대비한 안전장치다.
+
+vault가 존재하지 않는 경우의 처리도 정의한다.
+
+```markdown title="commands/autoresearch.md"
+If no vault is set up yet, say: "No wiki vault found. Run /wiki first
+to set one up."
+```
+
+autoresearch는 wiki 볼트가 있어야 결과를 파일링할 수 있다. 볼트가 없으면 연구를 시작하지 않고 `/wiki`를 먼저 실행하라고 안내한다. 1편에서 다룬 `/wiki` 스킬이 볼트 스캐폴딩을 담당한다.
+
+---
+
+### Wiki Update After Research
+
+연구 완료 후 위키 업데이트와 보고를 처리한다.
+
+```markdown title="commands/autoresearch.md"
+After research is complete, update wiki/index.md, wiki/log.md,
+and wiki/hot.md.
+
+Report how many pages were created and what the key findings are.
+```
+
+SKILL.md에서 정의한 3가지 후처리(index, log, hot 업데이트)를 커맨드 레벨에서 다시 한번 강조한다. 그리고 사용자에게 "몇 개 페이지가 생성되었고 핵심 발견은 무엇인가"를 보고하라고 명시한다.
+
+이 보고 지시가 SKILL.md의 "Report to User" 섹션과 연결된다. 커맨드 파일은 간결하게 "보고하라"고만 말하고, 보고 형식의 상세는 SKILL.md에 위임한다.
+
+---
+
+## 다른 스킬과의 연결점
+
+autoresearch는 claude-obsidian 스킬 체인에서 **자율 연구 계층**을 담당한다.
+
+```text
+주제 → [autoresearch] → WebSearch/WebFetch → [defuddle] → 정제된 소스
+                                                              ↓
+wiki/sources/ ← wiki/concepts/ ← wiki/entities/ ← wiki/questions/
+```
+
+**wiki와의 관계.** 1편에서 다룬 wiki 스킬이 볼트를 스캐폴딩하고, autoresearch는 그 볼트에 연구 결과를 채운다. 볼트가 없으면 autoresearch가 동작하지 않는다.
+
+**wiki-ingest와의 관계.** 3편의 wiki-ingest는 단일 소스를 수동으로 인제스트한다. autoresearch는 여러 소스를 자동으로 검색하고 인제스트한다. 공통점은 결과물이 모두 wiki/sources/, wiki/concepts/, wiki/entities/에 파일링된다는 것이다. 차이점은 wiki-ingest가 사용자가 제공한 소스를 처리하는 반면, autoresearch는 스스로 소스를 찾아낸다.
+
+**wiki-query와의 관계.** 4편의 wiki-query는 기존 위키 콘텐츠에서 답변을 생성한다. autoresearch가 위키를 풍부하게 채울수록 wiki-query의 답변 품질이 높아진다. autoresearch의 Open Questions가 wiki-query의 gap identification으로 이어질 수도 있다.
+
+**defuddle과의 관계.** 7편의 defuddle은 웹페이지에서 클러터를 제거한다. autoresearch가 WebFetch로 소스를 가져올 때 defuddle이 자동으로 적용될 수 있다. 토큰 절감 효과가 autoresearch의 "라운드당 5소스" 한도 안에서 더 많은 정보를 처리할 수 있게 한다.
+
+**wiki-lint와의 관계.** 5편의 wiki-lint는 위키 건강 상태를 점검한다. autoresearch가 한 세션에 최대 15페이지를 생성하므로, 몇 번의 autoresearch 세션 후에는 lint를 돌려 고아 페이지, 죽은 링크, 프론트매터 누락을 점검하는 것이 좋다.
+
+autoresearch는 claude-obsidian에서 가장 야심찬 스킬이다. 사용자가 주제 하나만 던지면 웹 검색부터 위키 파일링까지 전 과정을 자동화한다. 다음 9편에서는 이미지, PDF, 노트를 시각적으로 배열하는 `canvas` 스킬을 분석한다.
