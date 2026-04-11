@@ -1,0 +1,489 @@
+---
+title: "Superpowers - code review & finishing"
+description: "코드리뷰 요청, 피드백 수용과 거부, 브랜치 마무리까지 — 개발 사이클의 마지막 구간을 해부한다."
+date: "2026-04-11"
+published: false
+tags: ["claude-code", "superpowers", "prompt-engineering"]
+series: "superpowers-deep-dive"
+seriesOrder: 5
+---
+
+## 도입: 테스트가 모두 통과했다
+
+4편에서 품질 루프를 거쳐 모든 테스트가 통과하고, verification-before-completion이 증거를 확보했다. 코드가 동작한다. 하지만 동작하는 코드와 병합 가능한 코드는 다르다. 동작하는 코드를 병합 가능한 코드로 만드는 세 개의 스킬이 있다. requesting-code-review, receiving-code-review, finishing-a-development-branch. 개발 사이클의 마지막 구간이다.
+
+이 글은 그 세 스킬의 원문을 역추적하며, 리뷰 요청에서 브랜치 마무리까지의 과정을 해부한다.
+
+---
+
+## 1. requesting-code-review: 리뷰어에게 컨텍스트를 넘기는 방법
+
+### 서브에이전트에게 넘기는 컨텍스트 템플릿
+
+requesting-code-review 스킬의 핵심 원칙:
+
+```
+Review early, review often.
+```
+
+코드리뷰는 서브에이전트(code-reviewer)를 디스패치해서 수행한다. 여기서 중요한 설계가 있다. 원문이 이를 명시한다:
+
+```
+The reviewer gets precisely crafted context for evaluation — never your session's
+history. This keeps the reviewer focused on the work product, not your thought
+process, and preserves your own context for continued work.
+```
+
+리뷰어에게 세션 히스토리를 넘기지 않는다. 정밀하게 구성한 컨텍스트만 넘긴다. 이유는 두 가지다. 첫째, 리뷰어가 작업자의 사고 과정이 아닌 결과물에 집중하게 한다. 둘째, 작업자의 컨텍스트를 보존해서 리뷰 후 이어서 작업할 수 있게 한다.
+
+컨텍스트 템플릿은 다섯 개의 플레이스홀더로 구성된다:
+
+```
+{WHAT_WAS_IMPLEMENTED} - What you just built
+{PLAN_OR_REQUIREMENTS} - What it should do
+{BASE_SHA} - Starting commit
+{HEAD_SHA} - Ending commit
+{DESCRIPTION} - Brief summary
+```
+
+이 구조가 리뷰어에게 제공하는 것: 무엇을 만들었는지, 무엇을 만들어야 했는지, 어떤 커밋 범위를 봐야 하는지. 리뷰어는 이 정보만으로 `git diff {BASE_SHA}..{HEAD_SHA}`를 실행하고 변경사항을 검토할 수 있다.
+
+리뷰어 서브에이전트의 체크리스트는 다섯 개 영역을 커버한다:
+
+- **Code Quality** -- 관심사 분리, 에러 처리, 타입 안전성, DRY, 엣지 케이스
+- **Architecture** -- 설계 결정, 확장성, 성능, 보안
+- **Testing** -- 실제 로직 테스트 여부, 엣지 케이스 커버리지, 통합 테스트
+- **Requirements** -- 계획 요구사항 충족, 스펙 일치, 스코프 크립 없음
+- **Production Readiness** -- 마이그레이션 전략, 하위 호환성, 문서화
+
+리뷰어가 충분한 맥락 없이 리뷰하면 무슨 일이 벌어지는가? 표면적 피드백만 나온다. "변수명을 바꾸세요", "주석을 추가하세요" 수준의 피드백이다. 정밀한 컨텍스트가 있어야 "이 함수가 요구사항의 엣지 케이스를 처리하지 않는다"는 수준의 피드백이 가능하다.
+
+### 피드백 분류 체계
+
+리뷰 결과는 세 단계 심각도와 하나의 예외로 분류된다:
+
+```
+Fix Critical issues immediately
+Fix Important issues before proceeding
+Note Minor issues for later
+Push back if reviewer is wrong (with reasoning)
+```
+
+리뷰어 템플릿이 이 분류를 구체화한다:
+
+- **Critical (Must Fix)** -- 버그, 보안 이슈, 데이터 손실 위험, 기능 미작동
+- **Important (Should Fix)** -- 아키텍처 문제, 누락된 기능, 미흡한 에러 처리, 테스트 갭
+- **Minor (Nice to Have)** -- 코드 스타일, 최적화 기회, 문서화 개선
+
+네 번째 선택지인 pushback이 있다. 리뷰어가 틀렸으면 기술적 근거로 반박한다. 원문의 Red Flags 섹션이 이를 다룬다:
+
+```
+If reviewer wrong:
+  Push back with technical reasoning
+  Show code/tests that prove it works
+  Request clarification
+```
+
+리뷰어의 피드백은 지시가 아니다. 평가 대상이다. 다만, 반박에도 규칙이 있다: `"Argue with valid technical feedback"` -- 기술적으로 유효한 피드백에 반박하는 것은 Red Flag 목록에 포함된다. 틀린 피드백에 반박하되, 맞는 피드백에 반박하지 않는다.
+
+### 리뷰 타이밍
+
+원문은 리뷰가 필수인 시점과 선택인 시점을 구분한다.
+
+**필수:**
+- 서브에이전트 주도 개발에서 각 태스크 완료 후
+- 주요 기능 구현 완료 후
+- 메인 브랜치 병합 전
+
+**선택 (하지만 가치 있음):**
+- 막혔을 때 (새로운 관점)
+- 리팩토링 전 (기준선 확인)
+- 복잡한 버그 수정 후
+
+`"Skip review because 'it's simple'"` -- 간단해서 리뷰를 건너뛰는 것은 Never 목록에 있다. 1편에서 분석한 using-superpowers의 합리화 방지 테이블과 같은 패턴이다: `"The skill is overkill"` 합리화와 동일한 구조.
+
+---
+
+## 2. receiving-code-review: performative agreement 금지
+
+### 6단계 응답 패턴
+
+receiving-code-review 스킬의 핵심 원칙:
+
+```
+Verify before implementing. Ask before assuming. Technical correctness over social comfort.
+```
+
+기술적 정확성이 사회적 편안함보다 우선한다. 이 원칙이 6단계 응답 패턴으로 구체화된다:
+
+```
+WHEN receiving code review feedback:
+
+1. READ: Complete feedback without reacting
+2. UNDERSTAND: Restate requirement in own words (or ask)
+3. VERIFY: Check against codebase reality
+4. EVALUATE: Technically sound for THIS codebase?
+5. RESPOND: Technical acknowledgment or reasoned pushback
+6. IMPLEMENT: One item at a time, test each
+```
+
+각 단계의 설계 의도를 분석한다.
+
+**READ** -- 피드백을 끝까지 읽되 반응하지 않는다. 읽는 도중에 반응하면, 첫 번째 항목에 대한 반응이 나머지 항목의 이해를 왜곡한다. 전체를 파악한 뒤에 반응해야 항목 간 관계를 볼 수 있다.
+
+**UNDERSTAND** -- 자기 말로 재진술한다. 재진술이 불가능하면 이해하지 못한 것이다. 이 단계에서 원문이 불분명한 항목 처리를 별도로 지정한다:
+
+```
+IF any item is unclear:
+  STOP - do not implement anything yet
+  ASK for clarification on unclear items
+
+WHY: Items may be related. Partial understanding = wrong implementation.
+```
+
+불분명한 항목이 있으면 전부 멈추고 질문한다. 이해한 것만 먼저 구현하지 않는다. 항목들이 서로 관련되어 있을 수 있기 때문이다. 부분적 이해는 잘못된 구현이다.
+
+원문이 구체적 예시를 든다:
+
+```
+your human partner: "Fix 1-6"
+You understand 1,2,3,6. Unclear on 4,5.
+
+WRONG: Implement 1,2,3,6 now, ask about 4,5 later
+RIGHT: "I understand items 1,2,3,6. Need clarification on 4 and 5 before proceeding."
+```
+
+**VERIFY** -- 피드백을 코드베이스 현실과 대조한다. 리뷰어의 제안이 현재 코드베이스에서 실제로 유효한지 확인한다.
+
+**EVALUATE** -- 이 코드베이스에 맞는지 평가한다. 일반적으로 좋은 제안이라도 이 프로젝트에 맞지 않을 수 있다. 외부 리뷰어에 대한 평가 체크리스트가 있다:
+
+```
+BEFORE implementing:
+  1. Check: Technically correct for THIS codebase?
+  2. Check: Breaks existing functionality?
+  3. Check: Reason for current implementation?
+  4. Check: Works on all platforms/versions?
+  5. Check: Does reviewer understand full context?
+```
+
+5번이 핵심이다. 리뷰어가 전체 맥락을 이해하고 있는가? 컨텍스트 템플릿이 아무리 정밀해도, 프로젝트의 모든 역사와 결정 배경을 담을 수는 없다.
+
+**RESPOND** -- 기술적 인정 또는 근거 있는 반박. 여기서 performative agreement 금지 규칙이 적용된다.
+
+**IMPLEMENT** -- 한 번에 하나씩 구현하고 각각 테스트한다. 4편에서 분석한 TDD의 Iron Law와 연결된다.
+
+### Performative Agreement 금지의 설계
+
+이 스킬에서 가장 주목할 부분이다. 원문의 Forbidden Responses:
+
+```
+NEVER:
+- "You're absolutely right!" (explicit CLAUDE.md violation)
+- "Great point!" / "Excellent feedback!" (performative)
+- "Let me implement that now" (before verification)
+
+INSTEAD:
+- Restate the technical requirement
+- Ask clarifying questions
+- Push back with technical reasoning if wrong
+- Just start working (actions > words)
+```
+
+`"You're absolutely right!"`는 CLAUDE.md 위반으로 명시되어 있다. `"Great point!"`는 performative -- 수행적 동의, 즉 동의하는 척하는 것이다. `"Let me implement that now"`는 검증 전에 구현을 시작하는 것이다.
+
+올바른 피드백 수용 패턴도 규정한다:
+
+```
+"Fixed. [Brief description of what changed]"
+"Good catch - [specific issue]. Fixed in [location]."
+[Just fix it and show in the code]
+```
+
+감사 표현도 금지한다:
+
+```
+"Thanks for catching that!" -- ANY gratitude expression
+
+Why no thanks: Actions speak. Just fix it. The code itself shows you heard the feedback.
+
+If you catch yourself about to write "Thanks": DELETE IT. State the fix instead.
+```
+
+왜 이렇게까지 제한하는가? LLM의 sycophancy(아첨) 경향을 직접적으로 차단하는 설계다. LLM은 기본적으로 상대의 말에 동의하려는 경향이 있다. 리뷰어가 "이 코드를 고치세요"라고 하면, LLM은 "좋은 지적입니다!"라고 응답한 뒤 무비판적으로 구현하려 한다. 이 스킬은 그 경향을 차단하고, 기술적 검증을 거치도록 강제한다.
+
+틀렸다가 정정할 때의 패턴도 규정한다:
+
+```
+If you pushed back and were wrong:
+  "You were right - I checked [X] and it does [Y]. Implementing now."
+  "Verified this and you're correct. My initial understanding was wrong because [reason]. Fixing."
+
+  Long apology -- WRONG
+  Defending why you pushed back -- WRONG
+  Over-explaining -- WRONG
+```
+
+사실을 진술하고 넘어간다. 사과하거나 변명하지 않는다.
+
+### YAGNI 체크
+
+receiving-code-review에는 YAGNI(You Aren't Gonna Need It) 체크 규칙이 포함되어 있다:
+
+```
+IF reviewer suggests "implementing properly":
+  grep codebase for actual usage
+
+  IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
+  IF used: Then implement properly
+```
+
+리뷰어가 "제대로 구현하세요"라고 하면, 먼저 코드베이스에서 실제 사용 여부를 확인한다. 사용되지 않으면 YAGNI -- 필요하지 않은 것은 만들지 않는다. 원문의 규칙:
+
+```
+"You and reviewer both report to me. If we don't need this feature, don't add it."
+```
+
+리뷰어의 제안도 사용자의 실제 필요와 대조해야 한다. 4편에서 분석한 TDD의 과잉 구현 방지와 같은 맥락이다. 테스트가 요구하지 않는 기능을 만들지 않듯, 코드베이스가 사용하지 않는 기능을 "제대로" 구현하지 않는다.
+
+### 구현 순서
+
+멀티 항목 피드백의 처리 순서:
+
+```
+FOR multi-item feedback:
+  1. Clarify anything unclear FIRST
+  2. Then implement in this order:
+     - Blocking issues (breaks, security)
+     - Simple fixes (typos, imports)
+     - Complex fixes (refactoring, logic)
+  3. Test each fix individually
+  4. Verify no regressions
+```
+
+불분명한 것을 먼저 명확히 하고, 차단 이슈를 먼저 고치고, 단순한 것을 먼저 고치고, 복잡한 것을 나중에 고친다. 각 수정마다 개별 테스트하고 회귀를 확인한다.
+
+---
+
+## 3. finishing-a-development-branch: 4가지 경로
+
+### 테스트 통과가 전제조건이다
+
+finishing-a-development-branch 스킬의 핵심 원칙:
+
+```
+Verify tests -> Present options -> Execute choice -> Clean up.
+```
+
+Step 1이 테스트 검증이다. 원문이 이를 명확히 한다:
+
+```
+If tests fail:
+  Tests failing (<N> failures). Must fix before completing:
+  [Show failures]
+  Cannot proceed with merge/PR until tests pass.
+
+Stop. Don't proceed to Step 2.
+```
+
+테스트가 실패하면 멈춘다. Step 2로 진행하지 않는다. 이것은 4편에서 분석한 verification-before-completion과 직접 연결된다. 증거 없이 진행하지 않는다.
+
+### 4가지 선택지
+
+테스트가 통과하면, 정확히 4가지 선택지를 제시한다:
+
+```
+Implementation complete. What would you like to do?
+
+1. Merge back to <base-branch> locally
+2. Push and create a Pull Request
+3. Keep the branch as-is (I'll handle it later)
+4. Discard this work
+
+Which option?
+```
+
+원문이 `"Don't add explanation"` -- 설명을 추가하지 말라고 지시한다. 4개의 선택지를 간결하게 나열한다. `"What should I do next?"` 같은 열린 질문은 Common Mistakes에 포함되어 있다:
+
+```
+Open-ended questions:
+  Problem: "What should I do next?" -> ambiguous
+  Fix: Present exactly 4 structured options
+```
+
+각 선택지의 실행 절차와 정리 규칙을 분석한다.
+
+### Option 1: Merge Locally
+
+```bash
+git checkout <base-branch>
+git pull
+git merge <feature-branch>
+<test command>  # 병합 결과에서 다시 테스트
+git branch -d <feature-branch>
+```
+
+병합 후 다시 테스트한다. 피처 브랜치에서 테스트가 통과했더라도, 베이스 브랜치와 병합한 결과에서도 테스트가 통과해야 한다. Red Flags에 명시되어 있다: `"Merge without verifying tests on result"` -- 병합 결과에서 테스트 검증 없이 진행하지 않는다.
+
+Worktree 정리: 수행한다.
+
+### Option 2: Push and Create PR
+
+```bash
+git push -u origin <feature-branch>
+gh pr create --title "<title>" --body "..."
+```
+
+PR을 만든다. 브랜치는 삭제하지 않는다. 리뷰가 진행되는 동안 브랜치가 필요하기 때문이다.
+
+Worktree 정리: 수행하지 않는다. PR 리뷰 중 추가 커밋이 필요할 수 있기 때문이다.
+
+### Option 3: Keep As-Is
+
+```
+"Keeping branch <name>. Worktree preserved at <path>."
+```
+
+아무것도 하지 않는다. 사용자가 나중에 직접 처리한다.
+
+Worktree 정리: 하지 않는다.
+
+### Option 4: Discard
+
+```
+This will permanently delete:
+  - Branch <name>
+  - All commits: <commit-list>
+  - Worktree at <path>
+
+Type 'discard' to confirm.
+```
+
+확인을 요구한다. 원문이 `"Wait for exact confirmation"` -- 정확한 확인을 기다린다. 실수로 작업을 삭제하는 것을 방지한다. Common Mistakes에도 있다: `"No confirmation for discard"` -- 확인 없이 삭제하지 않는다.
+
+Worktree 정리: 수행한다 (강제 삭제).
+
+### Worktree 정리 규칙 요약
+
+원문의 Quick Reference 테이블:
+
+| Option | Merge | Push | Keep Worktree | Cleanup Branch |
+|--------|-------|------|---------------|----------------|
+| 1. Merge locally | O | - | - | O |
+| 2. Create PR | - | O | O | - |
+| 3. Keep as-is | - | - | O | - |
+| 4. Discard | - | - | - | O (force) |
+
+패턴이 보인다. Worktree를 유지하는 것은 Option 2와 3뿐이다. Option 2는 PR 리뷰 중에 추가 커밋이 필요할 수 있어서고, Option 3은 사용자가 직접 처리할 예정이라서다. Option 1과 4는 작업이 확정(병합)되었거나 폐기되었으므로 worktree가 필요 없다.
+
+3편에서 분석한 using-git-worktrees 스킬이 만든 worktree를 이 스킬이 정리한다. 원문이 이 연결을 명시한다:
+
+```
+Pairs with:
+  using-git-worktrees - Cleans up worktree created by that skill
+```
+
+---
+
+## 4. 시리즈 회고 -- 전체 순환 구조
+
+### 14개 스킬의 순환
+
+5편에 걸쳐 분석한 14개 스킬이 하나의 순환을 형성한다.
+
+```text
+[using-superpowers]
+    스킬 디스패칭, 1% 규칙
+        |
+        v
+[brainstorming]
+    HARD-GATE, 9단계, 이중 승인
+        |
+        v
+[writing-plans]
+    No Placeholders, 실행 가능한 계획서
+        |
+        v
+[using-git-worktrees]
+    격리된 작업 공간 생성
+        |
+        v
+[executing-plans] / [subagent-driven-development]
+    배치 실행 + 체크포인트 / 서브에이전트 디스패치
+        |
+        v
+[dispatching-parallel-agents]
+    독립 태스크 병렬 처리
+        |
+        v
+[test-driven-development]
+    Red-Green-Refactor, Iron Law
+        |
+        v
+[systematic-debugging]
+    4-phase, 3번 실패 시 아키텍처 재검토
+        |
+        v
+[verification-before-completion]
+    증거 없이 완료 선언 금지
+        |
+        v
+[requesting-code-review]
+    서브에이전트에게 정밀 컨텍스트 전달
+        |
+        v
+[receiving-code-review]
+    performative agreement 금지, 6단계 패턴
+        |
+        v
+[finishing-a-development-branch]
+    4가지 경로, worktree 정리
+        |
+        v
+(새 작업) --> [using-superpowers] ...
+```
+
+마지막 노드에서 다시 첫 번째 노드로 돌아간다. finishing-a-development-branch가 브랜치를 정리하면, 새 작업이 시작되고, using-superpowers가 다시 스킬을 디스패치한다.
+
+이 14개 외에 직접 다루지 않았지만 순환에 참여하는 스킬이 두 개 있다:
+- **writing-skills** -- 새 스킬을 만들거나 기존 스킬을 수정할 때
+- **code-reviewer** -- requesting-code-review가 디스패치하는 서브에이전트 템플릿
+
+### 각 스킬이 독립적이면서 연결되는 방식
+
+각 스킬은 독립적으로 읽고 실행할 수 있다. brainstorming을 모르더라도 test-driven-development를 실행할 수 있다. 하지만 스킬 간 전이 규칙이 있다. 몇 가지 연결을 추적하면:
+
+**brainstorming → writing-plans**: brainstorming의 터미널 노드가 `"Invoke writing-plans skill"`이다. 설계가 승인되면 계획 수립으로 넘어간다.
+
+**executing-plans → requesting-code-review**: executing-plans의 배치 완료 후 코드리뷰를 요청한다. 원문: `"Review after each batch (3 tasks)"`.
+
+**systematic-debugging → test-driven-development**: 디버깅의 Phase 4에서 실패하는 테스트를 만들면 TDD의 RED 단계로 진입한다. 원문: `"Use the superpowers:test-driven-development skill for writing proper failing tests"`.
+
+**requesting-code-review → receiving-code-review**: 리뷰를 요청하면 피드백이 돌아오고, 피드백을 수용하는 프로세스가 시작된다.
+
+**receiving-code-review → finishing-a-development-branch**: 리뷰 피드백을 모두 처리하면 브랜치를 마무리한다. finishing 스킬의 Integration 섹션이 이를 명시한다:
+
+```
+Called by:
+  subagent-driven-development (Step 7) - After all tasks complete
+  executing-plans (Step 5) - After all batches complete
+```
+
+이 연결들이 superpowers 설계 철학의 핵심이다. 각 스킬이 자기 역할만 수행하되, 다음 스킬로의 전이를 명시적으로 지정한다. 스킬 간 연결이 코드에 하드코딩된 것이 아니라 프롬프트 텍스트에 선언되어 있다.
+
+### 5편에서 관통하는 설계 패턴
+
+5편의 스킬을 관통하는 세 가지 패턴이 있다.
+
+**첫째, 합리화 방지.** using-superpowers의 12개 패턴, test-driven-development의 6개 패턴, systematic-debugging의 5개 패턴, verification-before-completion의 6개 패턴. 모든 스킬이 에이전트가 프로세스를 건너뛰려는 합리화를 명시적으로 차단한다. LLM이 지시를 무시할 수 있는 모든 경로를 사전에 열거하고 차단하는 설계다.
+
+**둘째, 증거 기반 판단.** verification-before-completion의 `"Confidence != evidence"`, systematic-debugging의 `"Seeing symptoms != understanding root cause"`, receiving-code-review의 `"Verify before implementing"`. 확신이 아닌 증거, 증상이 아닌 원인, 동의가 아닌 검증. 모든 스킬이 판단의 근거를 요구한다.
+
+**셋째, sycophancy 차단.** receiving-code-review의 performative agreement 금지가 가장 직접적이지만, verification-before-completion의 `"should/probably/seems to"` 금지도 같은 맥락이다. LLM이 상대의 기대에 맞추려는 경향을 차단하고, 사실에 기반한 응답을 강제한다.
+
+---
+
+## 마무리
+
+5편에 걸쳐 superpowers의 14개 스킬을 해부했다. using-superpowers의 1% 규칙에서 시작해, brainstorming의 HARD-GATE, writing-plans의 No Placeholders 철학, executing-plans의 배치 실행, subagent-driven-development의 서브에이전트 디스패치, dispatching-parallel-agents의 병렬 처리, using-git-worktrees의 격리, test-driven-development의 Red-Green-Refactor, systematic-debugging의 4-phase 프로세스, verification-before-completion의 증거 기반 완료, requesting-code-review의 컨텍스트 템플릿, receiving-code-review의 performative agreement 금지, finishing-a-development-branch의 4가지 경로까지.
+
+이 스킬들은 결국 하나의 질문에 답한다: LLM에게 복잡한 작업을 맡길 때 품질을 어떻게 보장하는가? superpowers의 답은 프로세스를 프롬프트로 코드화하는 것이다. 합리화를 사전 차단하고, 증거를 요구하고, sycophancy를 금지하고, 각 단계의 전이 규칙을 선언한다. 스킬은 에이전트의 능력을 확장하는 것이 아니라, 에이전트의 실패 모드를 체계적으로 차단하는 장치다.

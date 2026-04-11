@@ -1,0 +1,233 @@
+---
+title: "Superpowers - using-superpowers"
+description: "사용자의 요청을 받은 에이전트가 코드를 쓰기 전에 거치는 스킬 디스패칭 메커니즘을 해부한다."
+date: "2026-04-11"
+published: false
+tags: ["claude-code", "superpowers", "prompt-engineering"]
+series: "superpowers-deep-dive"
+seriesOrder: 1
+---
+
+## 도입: "버튼 추가해줘"
+
+사용자가 Claude Code에 "버튼 추가해줘"라고 입력한다. 직관적으로 기대하는 행동은 에이전트가 곧바로 파일을 열고 코드를 쓰는 것이다. 하지만 실제로 벌어지는 일은 다르다. 에이전트는 코드를 쓰기 전에 brainstorming 스킬을 발동시킨다. 사용자 입장에서 한 줄짜리 요청이 왜 brainstorming을 거쳐야 하는가?
+
+이 글은 그 질문에서 출발해서, `using-superpowers` 스킬의 원문을 역추적하며 에이전트의 스킬 디스패칭 메커니즘을 해부한다.
+
+---
+
+## 1. 1% 규칙과 digraph 분석
+
+### 의사결정 흐름
+
+`using-superpowers` 스킬은 에이전트가 사용자 메시지를 받았을 때 어떤 순서로 판단해야 하는지를 digraph로 명시한다.
+
+```text
+digraph skill_flow {
+    "User message received" [shape=doublecircle];
+    "About to EnterPlanMode?" [shape=doublecircle];
+    "Already brainstormed?" [shape=diamond];
+    "Invoke brainstorming skill" [shape=box];
+    "Might any skill apply?" [shape=diamond];
+    "Invoke Skill tool" [shape=box];
+    "Announce: 'Using [skill] to [purpose]'" [shape=box];
+    "Has checklist?" [shape=diamond];
+    "Create TodoWrite todo per item" [shape=box];
+    "Follow skill exactly" [shape=box];
+    "Respond (including clarifications)" [shape=doublecircle];
+
+    "About to EnterPlanMode?" -> "Already brainstormed?";
+    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
+    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
+    "Invoke brainstorming skill" -> "Might any skill apply?";
+
+    "User message received" -> "Might any skill apply?";
+    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, even 1%"];
+    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
+    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
+    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
+    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
+    "Has checklist?" -> "Follow skill exactly" [label="no"];
+    "Create TodoWrite todo per item" -> "Follow skill exactly";
+}
+```
+
+### 각 노드의 역할
+
+이 digraph에는 두 개의 진입점이 있다.
+
+- **User message received**: 사용자가 새로운 메시지를 보낸 경우. 곧바로 `"Might any skill apply?"` 판단으로 간다.
+- **About to EnterPlanMode?**: 에이전트가 계획 모드에 진입하려는 경우. 이때는 먼저 brainstorming을 했는지 확인한다. 안 했으면 brainstorming 스킬을 먼저 발동시킨다.
+
+핵심 분기는 `"Might any skill apply?"` 노드다. 여기서 에이전트는 적용 가능한 스킬이 있는지 판단하는데, 판단 기준이 `"yes, even 1%"`다. 1%의 가능성만 있어도 스킬을 호출한다.
+
+스킬이 호출된 뒤에는 세 단계를 거친다:
+
+1. **Announce** - 어떤 스킬을 왜 쓰는지 선언
+2. **Has checklist?** - 스킬에 체크리스트가 있으면 TodoWrite로 할 일 목록 생성
+3. **Follow skill exactly** - 스킬의 지시를 따라 실행
+
+`"Respond (including clarifications)"`로 빠지는 경로는 `"definitely not"` — 스킬이 적용될 가능성이 정말 없을 때뿐이다.
+
+### 1% 규칙의 설계 근거
+
+원문의 핵심 규칙은 이렇다:
+
+```
+Even a 1% chance a skill might apply means that you should invoke the skill to check.
+If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+```
+
+왜 1%인가? 이것은 오류 비용의 비대칭에서 나온다.
+
+- **False negative** (스킬이 적용되는데 안 쓴 경우): 에이전트가 스킬 없이 작업을 수행한다. 품질이 떨어지거나, 프로세스를 건너뛰거나, 코드가 이상하게 나온다. 사용자는 결과를 보고 나서야 문제를 알게 된다. 비용이 크다.
+- **False positive** (스킬이 불필요한데 호출한 경우): 스킬이 로드되고, 상황에 맞지 않으면 쓰지 않으면 된다. 비용은 스킬 로드 시간 정도다. 거의 무시할 수 있다.
+
+원문은 이 비대칭을 더 강하게 표현한다:
+
+```
+If you think there is even a 1% chance a skill might apply to what you are doing,
+you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. This is not optional.
+You cannot rationalize your way out of this.
+```
+
+`"This is not negotiable"`, `"You cannot rationalize your way out of this"` — 이 표현들은 LLM이 스킬 호출을 건너뛰는 것을 확률적으로 억제하기 위한 장치다. LLM은 문맥이 길어지면 지시를 무시할 확률이 올라가는데, 이런 강조 표현이 그 확률을 낮춘다.
+
+---
+
+## 2. Red Flags: 합리화 방지 테이블
+
+### 12개 패턴
+
+`using-superpowers`는 에이전트가 스킬 호출을 건너뛰려 할 때 떠올릴 수 있는 12가지 합리화 패턴을 명시적으로 차단한다.
+
+```
+These thoughts mean STOP—you're rationalizing:
+```
+
+| Thought | Reality |
+|---------|---------|
+| `"This is just a simple question"` | Questions are tasks. Check for skills. |
+| `"I need more context first"` | Skill check comes BEFORE clarifying questions. |
+| `"Let me explore the codebase first"` | Skills tell you HOW to explore. Check first. |
+| `"I can check git/files quickly"` | Files lack conversation context. Check for skills. |
+| `"Let me gather information first"` | Skills tell you HOW to gather information. |
+| `"This doesn't need a formal skill"` | If a skill exists, use it. |
+| `"I remember this skill"` | Skills evolve. Read current version. |
+| `"This doesn't count as a task"` | Action = task. Check for skills. |
+| `"The skill is overkill"` | Simple things become complex. Use it. |
+| `"I'll just do this one thing first"` | Check BEFORE doing anything. |
+| `"This feels productive"` | Undisciplined action wastes time. Skills prevent this. |
+| `"I know what that means"` | Knowing the concept ≠ using the skill. Invoke it. |
+
+### 실패 시나리오 역추적
+
+이 테이블의 각 항목은 실제 실패 패턴에서 비롯되었을 가능성이 높다. 몇 가지를 역추적해 보면:
+
+**`"This is just a simple question"`** — "버튼 추가해줘"가 정확히 이 케이스다. 단순한 질문처럼 보이지만, 실제로는 brainstorming이 필요한 구현 작업이다. 어디에 버튼을 만들지, 어떤 컴포넌트를 쓸지, 기존 디자인 시스템과 어떻게 맞출지 — 단순한 질문이 복잡한 구현을 내포한다.
+
+**`"I need more context first"`** — 에이전트가 "어떤 버튼이요?"라고 되물으려 할 때다. 하지만 스킬 체크는 **명확화 질문보다 먼저** 와야 한다. brainstorming 스킬이 이미 명확화 질문의 구조를 가이드하기 때문이다.
+
+**`"Let me explore the codebase first"`** — 에이전트가 코드베이스를 먼저 탐색하려 할 때다. 하지만 스킬이 탐색 **방법**을 알려준다. 스킬 없이 탐색하면 비효율적이거나 잘못된 방향으로 탐색할 수 있다.
+
+**`"I remember this skill"`** — 이전 대화에서 스킬을 읽었으니 다시 안 읽어도 된다는 생각이다. 하지만 스킬은 업데이트된다. 캐싱된 기억이 아닌, 현재 버전을 읽어야 한다. 원문의 Reality가 이를 명확히 한다: `"Skills evolve. Read current version."`
+
+**`"The skill is overkill"`** — 에이전트가 "이 정도는 스킬 없이도 할 수 있다"고 판단할 때다. 하지만 Reality의 답변이 핵심을 찌른다: `"Simple things become complex. Use it."` 처음에는 단순해 보이는 작업이 중간에 복잡해지는 것은 소프트웨어 개발에서 흔한 일이다.
+
+**`"This feels productive"`** — 가장 교묘한 합리화다. 에이전트가 무언가를 실행하고 있으면 생산적인 것처럼 느끼지만, 스킬 없이 수행한 작업은 방향이 틀렸을 수 있다. `"Undisciplined action wastes time."` — 규율 없는 행동이 시간을 낭비한다.
+
+**`"I can check git/files quickly"`** — git log나 파일을 읽어봐야 맥락이 보인다고 생각하지만, 스킬이 대화 컨텍스트를 기반으로 더 정확한 탐색 방향을 제시한다. 파일에는 현재 대화의 맥락이 없고, 스킬은 그 맥락을 활용해서 어디를 봐야 하는지 알려준다.
+
+**`"Let me gather information first"`** — 방향 없는 정보 수집은 시간만 소모한다. 스킬이 어떤 정보를 어떤 순서로 수집할지 가이드한다. 스킬 없이 정보를 모으면 필요 없는 정보까지 수집하거나, 정작 중요한 정보를 놓친다.
+
+**`"This doesn't need a formal skill"`** — `"formal"`이라는 표현 자체가 스킬을 부담스러운 절차로 인식하는 착각이다. 스킬은 단지 검증된 접근법일 뿐이다. 스킬을 "공식 절차"로 프레이밍하는 순간, 건너뛰는 것이 합리적으로 느껴진다.
+
+**`"This doesn't count as a task"`** — 질문에 답하기, 파일 하나 수정하기도 에이전트에게는 action이고, action에는 스킬이 적용된다. `"Action = task. Check for skills."` — 크기와 무관하게, 에이전트가 수행하는 모든 행위가 스킬 체크 대상이다.
+
+**`"I'll just do this one thing first"`** — "하나만 먼저"가 연쇄적으로 이어지면 결국 스킬 없이 전체 작업을 마치게 된다. 첫 번째 "하나"가 두 번째를 낳고, 두 번째가 세 번째를 낳는다. 스킬 체크는 그 연쇄를 시작하기 전에 와야 한다.
+
+**`"I know what that means"`** — 개념을 아는 것과 해당 스킬의 현재 버전을 실행하는 것은 다르다. 스킬은 업데이트된다. 이전에 읽은 스킬의 기억이 현재 버전과 다를 수 있고, 그 차이가 실행 결과를 바꾼다.
+
+이 테이블의 공통 패턴은 **"먼저 X하고, 그 다음에 스킬을 확인하겠다"는 순서 역전**이다. 원문은 이 역전을 일관되게 거부한다. 스킬 체크가 항상 먼저다.
+
+---
+
+## 3. Instruction Priority와 Skill Types
+
+### 3계층 우선순위
+
+```
+1. User's explicit instructions (CLAUDE.md, GEMINI.md, AGENTS.md, direct requests) — highest priority
+2. Superpowers skills — override default system behavior where they conflict
+3. Default system prompt — lowest priority
+```
+
+이 우선순위 설계는 두 가지 문제를 해결한다.
+
+**첫째, 스킬과 사용자 지시의 충돌.** 원문의 예시가 이를 잘 보여준다:
+
+```
+If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says
+"always use TDD," follow the user's instructions. The user is in control.
+```
+
+스킬이 아무리 강력해도 사용자의 명시적 지시를 덮어쓰지 않는다. 이는 superpowers가 에이전트를 "지배"하는 것이 아니라 "보조"하는 것임을 명확히 한다.
+
+**둘째, 스킬과 시스템 프롬프트의 충돌.** 스킬은 시스템 프롬프트의 기본 행동을 오버라이드한다. 예를 들어, 시스템 프롬프트가 "파일을 수정하기 전에 확인을 요청하라"고 하더라도, 스킬이 "즉시 수정하라"고 지시하면 스킬을 따른다. 스킬이 시스템 프롬프트보다 **구체적인 상황에 대한 지시**이기 때문이다.
+
+### Rigid vs Flexible 스킬
+
+```
+Rigid (TDD, debugging): Follow exactly. Don't adapt away discipline.
+
+Flexible (patterns): Adapt principles to context.
+
+The skill itself tells you which.
+```
+
+스킬을 두 유형으로 나누는 이유는 **적응의 비용**이 스킬마다 다르기 때문이다.
+
+- **Rigid 스킬** (TDD, debugging): 프로세스를 정확히 따라야 한다. 테스트를 먼저 쓰고 구현하는 TDD의 순서를 "상황에 맞게 조절"하면, TDD의 핵심 가치가 사라진다. 디버깅도 마찬가지로, 체계적 단계를 건너뛰면 원인을 놓친다.
+- **Flexible 스킬** (patterns): 원칙을 컨텍스트에 맞게 적용한다. 디자인 패턴이나 아키텍처 가이드라인은 프로젝트의 구조에 따라 달라질 수 있다.
+
+구분 기준은 에이전트가 판단하는 것이 아니다. `"The skill itself tells you which."` — 스킬 자체가 자신의 유형을 선언한다.
+
+### User Instructions: WHAT, not HOW
+
+```
+Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+```
+
+이 규칙은 도입 시나리오로 돌아간다. "버튼 추가해줘"는 **무엇**을 하라는 지시다. **어떻게** 하라는 지시가 아니다. 에이전트가 "사용자가 바로 코드를 쓰라고 했다"고 해석하면 안 된다. 워크플로우(brainstorming, TDD 등)는 에이전트가 "어떻게"를 결정하는 영역이고, 스킬이 그 "어떻게"를 가이드한다.
+
+---
+
+## 마무리: brainstorming으로의 연결
+
+도입 시나리오로 돌아가 보자. 사용자가 "버튼 추가해줘"라고 했을 때, digraph의 흐름은 이렇다:
+
+1. **User message received** → `"Might any skill apply?"` 판단
+2. brainstorming 스킬이 적용될 가능성이 있다 (사실상 거의 모든 구현 작업이 해당된다)
+3. **Invoke Skill tool** → brainstorming 스킬 로드
+4. brainstorming 스킬의 지시를 따라, 사용자의 의도를 파악하고 요구사항을 정리
+
+여기서 Skill Priority 섹션의 규칙이 적용된다:
+
+```
+When multiple skills could apply, use this order:
+
+1. Process skills first (brainstorming, debugging)
+   - these determine HOW to approach the task
+2. Implementation skills second (frontend-design, mcp-builder)
+   - these guide execution
+
+"Let's build X" → brainstorming first, then implementation skills.
+```
+
+brainstorming은 프로세스 스킬이므로 항상 먼저 온다. 구현 스킬(frontend-design 등)은 brainstorming이 방향을 잡은 뒤에 발동된다.
+
+다음 편에서는 이 brainstorming 스킬 자체를 해부한다. "버튼 추가해줘"라는 요청을 받은 brainstorming 스킬이 어떤 질문을 던지고, 어떤 구조로 요구사항을 정리하는지를 추적한다.
