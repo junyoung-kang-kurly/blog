@@ -52,10 +52,14 @@
 
 ### 배포 요청 (Vercel)
 
-1. `pnpm lint`
-2. `pnpm build`
-3. 프리뷰: `npx vercel`
-4. 프로덕션 명시 시: `npx vercel --prod`
+- **Vercel은 GitHub `main` 브랜치에 push되면 자동으로 프로덕션 재배포됩니다.**
+  `git push origin main` 자체가 발행 단계이며, 별도로 `npx vercel --prod`를
+  수동 실행할 필요는 없습니다. (로컬 CLI 토큰은 만료되어 있을 수 있고,
+  자동 배포가 canonical 경로입니다.)
+- push 전 필수 검증:
+  1. `pnpm build` — Velite의 MDX 파싱 오류(꺾쇠 이스케이프 등)가 여기서 잡힙니다
+  2. `pnpm lint` — 필요 시 함께 확인 (기존 사전 이슈가 있을 수 있음)
+- 로컬 프리뷰가 필요할 때만 `npx vercel`을 사용합니다 (먼저 `vercel login` 필요).
 
 실패 시 원인 로그를 요약하고 수정 후 재시도합니다.
 
