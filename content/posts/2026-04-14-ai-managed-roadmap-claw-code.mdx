@@ -1,0 +1,366 @@
+---
+title: "AI 에이전트가 로드맵을 관리하는 법: claw-code에서 배운 자율 루프"
+description: "한 오픈소스 Claude Code 포트의 789개 커밋과 ROADMAP.md를 해부해, AI 에이전트가 스스로 로드맵을 읽고 쓰고 반영하는 루프를 어떻게 구축하는지 분석한다. 그리고 내 프로젝트에 도입할 수 있는 실천 레시피로 정리한다."
+date: "2026-04-14"
+published: true
+tags: ["claude-code", "roadmap", "ai-agents", "workflow"]
+---
+
+## 도입: 789개 커밋, 사람 커밋은 4개
+
+한 오픈소스 레포를 열어봤다. Claude Code를 Rust로 재구현하는 포팅 프로젝트다. 커밋이 **789개** 쌓여 있었고, 전부 2주 안에 생성된 기록이었다. 작성자 분포가 묘했다.
+
+| 작성자 | 전체 커밋 | ROADMAP.md 수정 |
+|---|---|---|
+| Yeachan-Heo | 462 | 55 |
+| YeonGyu-Kim | 211 | 38 |
+| Jobdori | 112 | 29 |
+| instructkr (사람 유지자) | 4 | **0** |
+
+상위 세 명은 커밋 메시지 패턴과 빈도로 보아 AI 에이전트였다. 사람 유지자는 squash/port 같은 거대 리셋만 건드렸고, `ROADMAP.md`는 단 한 번도 직접 수정하지 않았다. **로드맵은 에이전트가 100% 관리하고 있었다.**
+
+그런데 이 `ROADMAP.md`가 심상치 않다. 86KB, 524줄. 번호 붙은 이슈가 #70까지 찍혀 있고, 완료된 이슈도 지워지지 않고 남아 있다. 어떤 엔트리는 2,500자가 넘는 버그 부검이다. 이 로드맵은 기능 기획서가 아니라, **에이전트가 스스로 읽고 쓰며 다음 작업을 고르는 상태 파일**이었다.
+
+이 글은 그 구조를 해부한다. 그리고 후반부에서 같은 루프를 내 프로젝트에 어떻게 도입할지 실천 레시피로 정리한다.
+
+---
+
+## 1. 이 로드맵이 보통과 다른 네 지점
+
+### 1-1. 고통점(Pain Points)이 문서 최상단에 박혀 있다
+
+대부분의 로드맵은 "할 일 목록"으로 시작한다. claw-code의 로드맵은 다르다. `Goal` 바로 아래에 **"Current Pain Points"** 섹션이 7개 항목으로 박혀 있다.
+
+```markdown
+### 1. Session boot is fragile
+- trust prompts can block TUI startup
+- prompts can land in the shell instead of the coding agent
+- "session exists" does not mean "session is ready"
+
+### 2. Truth is split across layers
+- tmux state
+- clawhip event stream
+- git/worktree state
+- test state
+- gateway/plugin/MCP runtime state
+
+### 3. Events are too log-shaped
+- claws currently infer too much from noisy text
+- important states are not normalized into machine-readable events
+```
+
+이게 왜 중요한가. 에이전트가 새로 발견한 이슈를 기존 고통 범주 중 어디에 속하는지 분류할 수 있어야 하기 때문이다. 범주가 먼저 있어야 후속 이슈의 위치가 결정된다. **"상태가 다섯 갈래로 쪼개져 있다"는 문장 한 줄**이 이후 수십 개 이슈의 북극성이 된다.
+
+### 1-2. 이슈가 번호로 관리된다
+
+백로그의 이슈는 모두 번호가 붙어 있다. 숫자는 **추가된 순서로 단조 증가**한다. 최근 커밋 로그를 보면 정확히 이렇게 흐른다.
+
+```text
+17e21bc docs(roadmap): add #70 — install-source ambiguity misleads users
+4f83a81 Make dump-manifests recoverable outside the inferred build tree
+763437a docs(roadmap): add #69 — lane stop summary quality floor
+06d1b8a docs(roadmap): add #68 — internal reinjection/resume path opacity
+4e199ec docs(roadmap): add #67 — structured review verdict events
+```
+
+번호는 **참조 ID**다. 이후 커밋이 `ROADMAP #41 test isolation` 같이 번호로 이슈를 지목할 수 있고, 다른 엔트리가 "#28 내에서 다루지 않은 부분은 #29에서 처리" 같은 교차 참조를 남길 수 있다. 번호 없이 제목만 있다면 에이전트는 매번 긴 제목 문자열 매칭을 해야 한다. 번호는 에이전트의 **작업 메모리 비용을 줄이는 인덱스**다.
+
+### 1-3. 완료된 이슈도 지우지 않는다
+
+대부분의 이슈는 끝에 `**done**: ...` 표시가 붙어 있다. 지워지지 않고 남는다.
+
+```markdown
+9. Stale-branch detection before workspace tests — **done**: `stale_branch.rs`
+   module with freshness detection, behind/ahead metrics, policy integration
+10. MCP structured degraded-startup reporting — **done**: `McpManager`
+    degraded-startup reporting (+183 lines in `mcp_stdio.rs`), failed server
+    classification (startup/handshake/config/partial), structured
+    `failed_servers` + `recovery_recommendations` in tool output
+```
+
+일반 프로젝트 관리라면 완료된 이슈는 이슈 트래커에서 닫아버리고 로드맵 문서에서는 제거한다. claw-code에서는 그 반대다.
+
+왜일까. 에이전트가 **새 이슈를 발견했을 때 기존 이슈와 겹치는지 빠르게 비교**해야 하기 때문이다. 과거에 "hook 실행 시 BrokenPipe" 이슈를 어떻게 해결했는지 로드맵 안에서 바로 찾을 수 있어야, 비슷한 증상이 다시 나올 때 같은 진단 경로를 반복하지 않는다. 완료 이슈는 **삭제 대상이 아니라 참조 자산**이다.
+
+### 1-4. 틀린 가설까지 기록되어 있다
+
+가장 특이한 지점이다. 해결된 이슈의 본문에는 **처음에 내렸던 잘못된 진단과, 그 오진에 기반한 실패한 수정 시도까지** 남아 있다. 다음 섹션에서 대표 사례를 본다.
+
+---
+
+## 2. 사례: #25 부검 — "틀린 가설"이 기록된 이유
+
+ROADMAP #25는 Linux CI에서 flake로 시작해 결정론적 실패로 악화된 테스트 하나의 부검이다. 엔트리 구조가 7단계로 고정되어 있다.
+
+### 2-1. 증상
+
+```text
+plugins::hooks::collects_and_runs_hooks_from_enabled_plugins
+
+PostToolUse hook .../hooks/post.sh failed to start for "Read":
+Broken pipe (os error 32)
+```
+
+첫 회 시도 flake → 3회차에 결정론적 red. 4번의 CI run 번호까지 엔트리에 박혀 있다.
+
+### 2-2. 첫 번째 가설 (틀림)
+
+초기 진단은 "생성된 `.sh` 파일에 execute bit가 없어서 `Command::new(path).spawn()`이 fork/exec에서 race한다"였다. 이 가설 기반으로 `chmod` 패치가 먼저 shipping됐다.
+
+### 2-3. 반증
+
+chmod 패치가 배포된 뒤에도 CI에서 같은 `Broken pipe` 에러로 실패했다. 코드 리뷰가 아니라 **CI run의 empirical 결과로 가설이 반증**되었다.
+
+### 2-4. 진짜 원인
+
+부모 프로세스가 자식의 stdin에 `write_all`로 쓰는 경로에서 `BrokenPipe`를 무조건 에러로 propagate하고 있었다. 테스트용 hook 스크립트가 `#!/bin/sh` + `printf` 한 줄이라서 **마이크로초 단위로 실행 완료** → 자식이 부모보다 먼저 exit하고 stdin을 닫아버림 → 부모가 200바이트짜리 JSON payload 쓰기를 끝내기 전에 EPIPE 발생 → "failed to start"로 오분류.
+
+실제로는 자식이 정상 실행되고 stdout까지 뱉었는데도 "시작 실패"가 된 것이다.
+
+### 2-5. 플랫폼 차이
+
+- **Linux**: pipe가 닫히면 즉시 `EPIPE`.
+- **macOS**: 작은 payload가 pipe 버퍼에 들어가버려서 자식 exit 전에 write 완료. 재현 안 됨.
+
+이것이 "로컬에선 green인데 CI(Linux)에서만 빨강"의 원인이었다.
+
+### 2-6. 수정 3파트
+
+1. `write_all`에서 `BrokenPipe`만 명시적으로 swallow, 그 후 `wait_with_output()`으로 exit 상태 정상 캡처
+2. 하이진 강화로 생성 `.sh`에 `0o755` 설정
+3. 회귀 방지 테스트 신설
+
+### 2-7. 메타 교훈
+
+```text
+`Broken pipe (os error 32)`가 fork/exec 경로에서 나오면 두 해석 사이에
+모호하다:
+1. "exec 자체가 실패했다"
+2. "exec는 성공했고 부모가 stdin 쓰기를 끝내기 전에 자식이 먼저 exit했다"
+
+첫 가설은 (1)을 cargo-cult했다. 반증은 empirical CI에서 나왔고,
+코드 검토에서 나오지 않았다. 이 패턴을 기억해두자: pipe 에러가
+fork/exec에서 나오면, 실패로 귀인하기 전에 wait_with_output()이
+자식에 대해 실제로 뭐라고 보고하는지 먼저 계측하라.
+```
+
+### 왜 이 구조를 고집하나
+
+증상만 남기고 오진을 지웠다면 **다음 번에 같은 에러 코드를 만났을 때 또 exec-bit 가설로 빠질 확률**이 크다. 에이전트는 과거 자신의 기록을 읽고 다음 행동을 정한다. 그러므로 오진의 궤적이 기록되지 않으면 같은 오류 경로를 반복한다. 이 엔트리는 todo 항목이 아니라 **에이전트의 장기 기억**이다.
+
+---
+
+## 3. 로드맵을 굴리는 세 가지 커밋 스타일
+
+커밋 이력을 보면, ROADMAP.md를 건드리는 커밋은 정확히 세 갈래로 나뉜다. 이 셋이 루프의 기본 동작을 구성한다.
+
+### 3-1. `docs(roadmap): add #NN` — 번호 부여
+
+```text
+17e21bc docs(roadmap): add #70 — install-source ambiguity misleads users
+06d1b8a docs(roadmap): add #68 — internal reinjection/resume path opacity
+2329ddb docs(roadmap): add #64 — structured artifact events
+```
+
+새 문제를 발견했을 때만 쓴다. 번호는 현재 최대 번호 + 1. 이 커밋에서는 **로드맵에만 추가**하고 코드는 건드리지 않는다. 발견과 해결을 구분한다.
+
+### 3-2. `Retire the stale ...` — 이슈 회수
+
+```text
+b825713 Retire the stale slash-command backlog item without breaking verification
+8eb93e9 Retire the stale bare-word skill discovery backlog item
+d40929c Retire the stale OpenAI reasoning-effort backlog item
+2d5f836 Retire the stale broken-plugin warning backlog item
+```
+
+검증 결과 현재 코드에서 이미 해결되어 있는 이슈, 혹은 더 이상 유효하지 않은 이슈를 "retire" 처리한다. 단순 삭제가 아니라, 검증 테스트가 green인지 먼저 확인하고 retire 사유를 기록한다.
+
+### 3-3. 일반 fix 커밋이 ROADMAP 1~3줄을 함께 수정 — 작업-기록 동기화
+
+```text
+6a95756 Make recovery handoffs ...          +2/-2 ROADMAP.md
+f91d156 Keep poisoned test locks ...        +3/-1 ROADMAP.md
+26b89e5 Keep completed lanes ...            +3/-3 ROADMAP.md
+```
+
+실제 코드 수정이 일어나는 모든 커밋은 ROADMAP의 해당 엔트리를 같은 커밋에서 업데이트한다. `"done at <hash>"` 태그가 붙는 순간이 이때다. **코드와 로드맵이 같은 원자 단위로 변한다.** 별도 커밋으로 나누면 로드맵이 코드보다 뒤처지거나 앞서는 drift가 생긴다.
+
+---
+
+## 4. 결정적 힌트: `backlog-scan lane`
+
+커밋 로그를 더 보면 단서가 하나 더 나온다.
+
+```text
+8f53524 Make backlog-scan lanes say what they actually selected
+1d83e67 Keep the backlog sweep from chasing external executor notes
+5c85e5a Keep the worker-state backlog honest with current main behavior
+```
+
+`backlog-scan lane`이라는 **전담 lane 타입**이 존재한다. 시스템에 내장된 루프는 대략 이렇다.
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  1. backlog-scan lane: ROADMAP.md 읽기 → 다음 #NN 선택    │
+│  2. work lane: 해당 이슈 코드 수정 + 테스트 + 검증         │
+│  3. 동일 커밋에 "done at <hash>" ROADMAP 업데이트          │
+│  4. 새 문제 발견 → docs(roadmap): add #NN+1 append        │
+│  5. stale 엔트리 검출 → Retire                            │
+│  └── 반복 → 다음 backlog-scan lane이 1단계로 복귀          │
+└─────────────────────────────────────────────────────────┘
+```
+
+그리고 `Keep the worker-state backlog honest with current main behavior` 같은 커밋이 있다는 건, **에이전트가 자신의 과거 ROADMAP 엔트리가 현재 코드와 어긋났을 때 그것을 감지하고 정정하는 단계**까지 존재한다는 뜻이다. 로드맵이 코드와 거짓말하지 않게 주기적으로 정합성 검사를 돈다.
+
+---
+
+## 5. 내 프로젝트에 적용하려면
+
+여기서부터 실천 파트다. claw-code는 병렬 lane, lane 이벤트 버스, clawhip 오케스트레이터 같은 하부 인프라를 깔고 움직인다. 개인 프로젝트에서 그 전부를 흉내 낼 필요는 없다. **패턴만 추려서 파일 한 개 + 커밋 컨벤션 + 에이전트 지침**으로도 같은 루프의 핵심은 돌릴 수 있다.
+
+### 5-1. 파일 하나부터: `ROADMAP.md`의 최소 템플릿
+
+프로젝트 루트에 `ROADMAP.md`를 만든다. 최소 구조는 네 섹션이다.
+
+````markdown
+# Project Roadmap
+
+## Goal
+(이 프로젝트의 "clawable" 한 줄 목표)
+
+## Current Pain Points
+### 1. (고통 범주 1)
+- 구체 증상 1
+- 구체 증상 2
+
+### 2. (고통 범주 2)
+- ...
+
+## Backlog
+
+1. **(이슈 제목)** — 한 문단 설명.
+   **Action.** 구체 수정 포인트.
+2. ...
+
+## Retired / Done Log
+
+- #1 done at <commit hash>: (요약)
+````
+
+핵심은 **Pain Points를 먼저 고정**하는 것이다. 에이전트가 새 이슈를 발견했을 때 "이건 범주 2야" 하고 분류 먼저 하고 넘어가게 된다.
+
+### 5-2. 세 가지 커밋 스타일을 `CLAUDE.md`에 못 박기
+
+에이전트가 로드맵을 관리하게 하려면 커밋 컨벤션을 명시해야 한다. 프로젝트의 `CLAUDE.md`(또는 `AGENTS.md`)에 다음을 추가한다.
+
+```markdown
+## ROADMAP 관리 규칙
+
+1. **신규 이슈 발견 시**: `docs(roadmap): add #NN — <title>` 커밋을 단독으로
+   만든다. 이 커밋에서는 코드를 수정하지 않는다. 번호는 현재 최대 번호 + 1.
+
+2. **이슈 해결 시**: 코드 수정 커밋 안에서 ROADMAP.md의 해당 엔트리를 같이
+   수정한다. 엔트리 끝에 `**done at <short-hash> on YYYY-MM-DD**: <요약>`
+   을 추가한다.
+
+3. **이슈 무효화 시**: `Retire the stale <title> backlog item` 커밋으로
+   엔트리를 Retired 섹션으로 이동한다. Retire 사유를 한 줄로 남긴다.
+
+4. **신선도 검사**: 매 작업 시작 전, 선택한 이슈의 "done at" 태그가
+   실제 코드 상태와 일치하는지 검증한다. 불일치 시 `Align the <area>
+   roadmap note with current behavior` 커밋으로 정정한다.
+```
+
+이 네 줄만 못 박아두면, 에이전트가 코드 작업을 할 때마다 ROADMAP이 자동으로 같이 따라간다.
+
+### 5-3. 실패 부검 포맷 고정 — 6단계 템플릿
+
+`#25` 스타일 부검을 쓰고 싶으면 포맷이 고정되어야 한다. 즉흥으로 쓰면 정보의 빠짐과 순서가 매번 달라진다. 다음을 엔트리 템플릿으로 고정하자.
+
+````markdown
+NN. **(이슈 제목)** — **done at <hash> on <date>**.
+
+    **증상**: 재현 경로 + 에러 메시지.
+
+    **첫 가설(틀렸다면)**: 처음 세운 가설과 그 기반 수정 시도.
+
+    **반증**: 어떤 관찰로 가설이 깨졌는지. 가능하면 CI run/재현 로그 링크.
+
+    **진짜 원인**: 코드 경로를 file:line 수준으로 특정.
+
+    **수정**: 변경된 파일/함수. "defense-in-depth"와 "핵심 fix"를 구분.
+
+    **교훈**: 다음 번에 같은 증상을 만났을 때 피해야 할 첫 가설.
+````
+
+**"첫 가설(틀렸다면)"** 섹션이 핵심이다. 틀린 가설을 제거하지 않고 기록으로 남기는 것이, 같은 오류 경로를 반복하지 않게 하는 유일한 방법이다.
+
+### 5-4. 번호 매김 전략과 Retire 기준
+
+번호는 단조 증가. 완료된 이슈는 번호를 재사용하지 않는다. 재사용하면 "#25"로 남긴 커밋/PR/슬랙 대화의 링크가 다른 내용을 가리키게 된다.
+
+Retire 기준은 단 두 가지로 좁히는 게 좋다.
+
+1. **이미 해결됨**: 현재 코드에서 증상 재현되지 않고, 회귀 테스트가 있다.
+2. **더 이상 유효하지 않음**: 해당 영역의 설계가 바뀌어서 이슈 자체가 의미를 잃었다. 이유를 한 줄로.
+
+그 외의 경우(예: "덜 중요해 보여서", "복잡해서")는 Retire하지 않는다. 낮은 우선순위로 두되 목록에는 남긴다. 삭제는 정보를 지우는 행위다.
+
+### 5-5. 에이전트용 루프 지침
+
+마지막으로, 에이전트가 한 사이클을 어떻게 돌지 `CLAUDE.md`에 명시한다.
+
+```markdown
+## 작업 루프
+
+1. **Backlog scan**: ROADMAP.md를 읽고, Pain Points 범주에 속한
+   미해결 이슈 중 검증 가능한 것 하나를 선택한다. 선택 이유를
+   한 줄로 말하고 시작한다.
+
+2. **신선도 검사**: 선택한 이슈의 "done at" 태그가 없는지,
+   그리고 설명된 증상이 실제로 재현되는지 먼저 확인한다.
+   재현되지 않으면 Retire로 전환한다.
+
+3. **수정 + 테스트**: 변경은 해당 이슈 범위로 제한한다.
+   관련 없는 리팩토링을 끼워 넣지 않는다.
+
+4. **로드맵 업데이트**: 같은 커밋에서 ROADMAP.md의 해당 엔트리에
+   "done at <hash>" 태그와 요약을 추가한다.
+
+5. **새 이슈 포착**: 작업 중 발견한 인접 문제가 있으면,
+   별도 커밋 `docs(roadmap): add #NN+1`로 등록한다.
+   현재 작업에 끼워 넣지 않는다.
+```
+
+이 다섯 단계를 지침으로 박아두면 에이전트의 한 사이클이 일관된다. 루프가 일관되어야 장기 기록이 일관된다.
+
+---
+
+## 6. 주의점 — 이 방식이 항상 좋은 건 아니다
+
+claw-code의 ROADMAP 스타일을 그대로 복제하기 전에 몇 가지 트레이드오프를 보자.
+
+**1. 문서가 빠르게 커진다.** 86KB짜리 마크다운 하나는 사람이 읽기에는 피곤하다. claw-code에서 이것이 성립하는 이유는 **실제 소비자가 사람이 아니라 에이전트**이기 때문이다. 사람이 진짜로 읽어야 하는 로드맵이라면 완료 이슈는 별도 `HISTORY.md`로 분리하는 편이 낫다.
+
+**2. 에이전트가 틀린 정보를 기록할 수 있다.** 과거 ROADMAP에 "commit `0984cca`가 /state 엔드포인트를 추가했다"고 남아 있지만 실제로는 그런 커밋이 없었던 사례가 claw-code에도 기록되어 있다(섹션 `Deployment Architecture Gap` 중 "Prior session note"). 신선도 검사(5-1의 4번 규칙)를 두지 않으면 로드맵이 코드와 거짓말을 한다.
+
+**3. 번호가 정치가 된다.** 여러 에이전트가 동시에 번호를 매기려고 하면 #NN이 겹친다. 직렬화 지점이 필요하다. claw-code는 `backlog-scan lane` 하나가 번호 매김을 전담한다. 규모가 작다면 "ROADMAP 업데이트는 항상 main에 직접, rebase로 번호 충돌 시 더 나중 커밋이 재번호" 정도의 규칙으로 충분하다.
+
+**4. 오진 기록이 정보 과잉이 될 수 있다.** 부검이 길어지면 핵심이 묻힌다. **"결론 → 요약 → 상세" 순서**로 쓰고, 요약 한 줄에서 전체 상태가 드러나게 해야 한다. claw-code의 #25도 첫 줄에 `done at 172a2ad on 2026-04-08`과 한 문장 요약이 먼저 나온다.
+
+---
+
+## 마무리
+
+이 패턴은 결국 한 문장으로 요약된다.
+
+> **로드맵을 할 일 목록이 아니라 에이전트의 장기 기억으로 취급하라.**
+
+이 전환에서 네 가지가 따라 나온다.
+
+1. 완료 이슈를 삭제하지 않는다. 참조 자산이다.
+2. 틀린 가설을 기록한다. 반복되는 오진을 끊는다.
+3. 코드와 로드맵을 같은 커밋에서 수정한다. drift를 원천 차단한다.
+4. Pain Points를 먼저 고정한다. 새 이슈가 분류될 위치를 준다.
+
+당장 오늘 할 수 있는 건 `ROADMAP.md` 하나 만들고, `CLAUDE.md`에 세 줄짜리 커밋 컨벤션을 박는 것이다. 그다음 한 번의 실패 부검을 6단계 포맷으로 써보자. 한 번만 포맷대로 쓰면, 에이전트는 다음부터 그 포맷을 복제한다. 루프는 그렇게 시작된다.
