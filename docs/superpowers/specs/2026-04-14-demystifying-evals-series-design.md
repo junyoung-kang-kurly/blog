@@ -25,7 +25,7 @@ Anthropic 엔지니어링 블로그 "[Demystifying Evals for AI Agents](https://
 **파일**: `2026-04-14-demystifying-evals-01-structure.mdx`
 **원문 섹션**: Introduction + The structure of an evaluation
 
-- 도입: 왜 AI 에이전트를 평가하기 어려운가 (자율성, 도구 사용, 상태 변경)
+- 들어가며: 왜 AI 에이전트를 평가하기 어려운가 (자율성, 도구 사용, 상태 변경)
 - single-turn eval → multi-turn eval → agent eval 진화 과정
 - 핵심 용어 정의: task, trial, grader, transcript, outcome, evaluation harness, agent harness, evaluation suite
 - 원문의 다이어그램(eval 구성요소) 해설

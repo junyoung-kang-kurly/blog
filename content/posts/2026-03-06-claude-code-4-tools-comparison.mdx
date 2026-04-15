@@ -10,26 +10,25 @@ tags: ["claude-code", "skills", "superpowers", "karpathy-guidelines", "feature-d
 
 Claude Code 생태계에는 "코드 품질을 높이자"는 같은 목적을 가진 도구가 여러 개 있다.
 
-- **Karpathy Guidelines** — 행동 원칙
-- **Superpowers** — 개발 방법론 프레임워크
-- **code-simplifier** — 자동 리팩토링 에이전트
-- **feature-dev** — 기능 개발 워크플로우
+- Karpathy Guidelines — 행동 원칙
+- Superpowers — 개발 방법론 프레임워크
+- code-simplifier — 자동 리팩토링 에이전트
+- feature-dev — 기능 개발 워크플로우
 
-이름과 설명만 보면 비슷해 보이지만, 실제로는 **역할이 완전히 다르다.**
-이 글에서는 각각이 무엇이고, 어떻게 다르고, 언제 써야 하는지 정리한다.
+이름만 보면 비슷하지만 실제 역할은 다르다. 각각이 무엇이고 어떻게 다른지, 언제 써야 하는지 정리했다.
 
 
 ## 먼저 용어부터: 스킬 vs 플러그인 vs 에이전트
 
-Claude Code에서 혼용되는 용어를 먼저 정리하자.
+Claude Code에서 자주 혼용되는 용어를 먼저 정리하자.
 
 | 개념 | 설명 | 호출 방법 |
 |------|------|-----------|
-| **스킬 (Skill)** | 프롬프트 파일. Claude의 행동을 제어하는 지침서 | `/skill-name`으로 호출 |
-| **플러그인 (Plugin)** | 스킬 + 훅 + MCP 서버 등을 묶은 패키지 | `claude plugin add`로 설치 |
-| **에이전트 (Agent)** | Task 도구로 실행되는 서브프로세스. 독립 맥락에서 작업 | 스킬/플러그인 내부에서 자동 실행 |
+| 스킬 (Skill) | 프롬프트 파일. Claude의 행동을 제어하는 지침서 | `/skill-name`으로 호출 |
+| 플러그인 (Plugin) | 스킬 + 훅 + MCP 서버 등을 묶은 패키지 | `claude plugin add`로 설치 |
+| 에이전트 (Agent) | Task 도구로 실행되는 서브프로세스. 독립 맥락에서 작업 | 스킬/플러그인 내부에서 자동 실행 |
 
-**스킬은 플러그인의 부분집합**이다. 모든 플러그인은 스킬을 포함할 수 있고, 스킬 단독으로도 존재할 수 있다.
+스킬은 플러그인의 부분집합이다. 모든 플러그인은 스킬을 포함할 수 있고, 스킬은 단독으로도 존재할 수 있다.
 
 
 ## 4종 도구의 정체
@@ -45,12 +44,12 @@ Claude Code에서 혼용되는 용어를 먼저 정리하자.
 
 4가지 행동 원칙을 프롬프트로 주입한다.
 
-1. **Think Before Coding** — 가정하지 마라, 트레이드오프를 드러내라
-2. **Simplicity First** — 최소 코드, 추측성 기능 금지
-3. **Surgical Changes** — 건드려야 할 것만 건드려라
-4. **Goal-Driven Execution** — 검증 가능한 성공 기준을 정의하라
+1. Think Before Coding — 가정하지 말고, 트레이드오프를 드러내라
+2. Simplicity First — 최소 코드, 추측성 기능 금지
+3. Surgical Changes — 건드려야 할 것만 건드려라
+4. Goal-Driven Execution — 검증 가능한 성공 기준을 정의하라
 
-**핵심 성격:** "~하지 마라"는 **제약**. LLM의 나쁜 습관을 사전에 차단한다.
+"~하지 마라"는 제약을 거는 방식이다. LLM의 나쁜 습관을 사전에 차단한다.
 
 
 ### 2. Superpowers — 플러그인 (14개 스킬 모듈)
@@ -73,13 +72,13 @@ Claude Code에서 혼용되는 용어를 먼저 정리하자.
 | 협업 | subagent-driven-development, dispatching-parallel-agents |
 | Git | using-git-worktrees, finishing-a-development-branch |
 
-**핵심 성격:** "이렇게 일하라"는 **프로세스**. TDD, 체계적 디버깅, 서브에이전트 리뷰를 강제한다.
+"이렇게 일하라"는 프로세스를 강제한다. TDD, 체계적 디버깅, 서브에이전트 리뷰 같은 것들.
 
-**가장 독특한 점 — 1% 룰:**
+특이한 건 1% 룰이다.
 
 > "스킬이 적용될 가능성이 1%라도 있으면, 반드시 호출해야 한다."
 
-선택이 아니라 **의무**다. `Iron Law`, `HARD-GATE` 같은 표현으로 LLM의 합리화를 차단한다.
+선택이 아니라 의무로 다룬다. `Iron Law`, `HARD-GATE` 같은 표현으로 LLM의 합리화를 차단한다.
 
 
 ### 3. code-simplifier — 플러그인 (자율 에이전트)
@@ -91,7 +90,7 @@ Claude Code에서 혼용되는 용어를 먼저 정리하자.
 출처: Anthropic 공식 플러그인
 ```
 
-코드가 수정되면 **자동으로** 정리한다.
+코드가 수정되면 자동으로 정리한다.
 
 - 중첩 깊이 줄이기
 - 중복 코드 제거
@@ -99,7 +98,7 @@ Claude Code에서 혼용되는 용어를 먼저 정리하자.
 - 중첩 삼항연산자 → switch/if-else 변환
 - ES modules, React 베스트 프랙티스 적용
 
-**핵심 성격:** "작성된 코드를 정리하라"는 **자동 리팩토링**. 사후에 동작한다.
+코드 작성 후에 도는 리팩토링이라 보면 된다.
 
 
 ### 4. feature-dev — 스킬 (에이전트 3종 포함)
@@ -123,79 +122,43 @@ Phase 6: Quality Review       → code-reviewer 에이전트로 리뷰
 Phase 7: Summary              → 결과 정리
 ```
 
-**핵심 성격:** "이 순서로 개발하라"는 **워크플로우**. 탐색 → 설계 → 구현 → 리뷰를 강제한다.
+탐색 → 설계 → 구현 → 리뷰의 순서를 강제한다.
 
 
 ## 핵심 비교표
 
 |  | Karpathy | Superpowers | code-simplifier | feature-dev |
 |---|---|---|---|---|
-| **유형** | 스킬 | 플러그인 | 플러그인 | 스킬 |
-| **역할** | 행동 원칙 | 개발 방법론 | 자동 리팩토링 | 개발 워크플로우 |
-| **비유** | 코딩 철학 | 시니어 개발자의 습관 | 자동 코드 포맷터 | 프로젝트 관리 |
-| **작동 시점** | 코드 작성 중 | 전체 개발 과정 | 코드 작성 후 | 기능 개발 시작~끝 |
-| **호출 방식** | 수동 (`/karpathy`) | 자동 (1% 룰) | 자동 (코드 변경 감지) | 수동 (`/feature-dev`) |
-| **오버헤드** | 거의 없음 | 높음 (토큰 多) | 낮음 | 중간 |
-| **TDD 강제** | ✗ | ✓ (Iron Law) | ✗ | ✗ |
-| **서브에이전트** | ✗ | ✓ (병렬 + 리뷰) | ✗ | ✓ (3종) |
-| **합리화 방지** | ✗ | ✓ (변명→반박 테이블) | ✗ | ✗ |
-| **공식 여부** | 커뮤니티 | 공식 마켓플레이스 | Anthropic 공식 | 커뮤니티 |
-
-
-## 비유로 이해하기
-
-4가지 도구를 요리에 비유하면:
-
-| 도구 | 요리 비유 |
-|------|-----------|
-| **Karpathy** | 요리 원칙 — "간은 마지막에", "재료를 낭비하지 마라" |
-| **Superpowers** | 요리 학교 커리큘럼 — 레시피 기획 → 재료 준비 → 조리 → 맛 검증까지 전 과정 |
-| **code-simplifier** | 자동 양념 조절기 — 요리가 끝나면 간이 맞는지 자동으로 조정 |
-| **feature-dev** | 레시피 — "1. 재료 확인 2. 손질 3. 조리 4. 플레이팅" 순서를 지정 |
-
-요리 원칙(Karpathy)을 아는 셰프가,
-레시피(feature-dev)를 따라 요리하고,
-요리 학교 방법론(Superpowers)으로 검증하며,
-완성 후 자동 양념 조절(code-simplifier)까지 거친다면?
-
-**나쁜 요리가 나오기 어렵다.**
+| 유형 | 스킬 | 플러그인 | 플러그인 | 스킬 |
+| 역할 | 행동 원칙 | 개발 방법론 | 자동 리팩토링 | 개발 워크플로우 |
+| 작동 시점 | 코드 작성 중 | 전체 개발 과정 | 코드 작성 후 | 기능 개발 시작~끝 |
+| 호출 방식 | 수동 (`/karpathy`) | 자동 (1% 룰) | 자동 (코드 변경 감지) | 수동 (`/feature-dev`) |
+| 오버헤드 | 거의 없음 | 높음 (토큰 多) | 낮음 | 중간 |
+| TDD 강제 | X | O (Iron Law) | X | X |
+| 서브에이전트 | X | O (병렬 + 리뷰) | X | O (3종) |
+| 합리화 방지 | X | O (변명→반박 테이블) | X | X |
+| 공식 여부 | 커뮤니티 | 공식 마켓플레이스 | Anthropic 공식 | 커뮤니티 |
 
 
 ## 언제 무엇을 써야 하는가
 
 ### 간단한 버그 수정, 한두 줄 변경
 
-```
-✅ Karpathy만으로 충분
-```
-
-Surgical Changes 원칙이 "건드려야 할 것만 건드려라"를 보장한다. 무거운 도구는 필요 없다.
+Karpathy만으로 충분하다. Surgical Changes 원칙이 "건드려야 할 것만 건드려라"를 보장하기 때문에 무거운 도구가 필요 없다.
 
 ### 기존 코드 수정, 리팩토링
 
-```
-✅ Karpathy + code-simplifier
-```
-
-Karpathy가 과잉 수정을 방지하고, code-simplifier가 작성 후 자동 정리한다.
+Karpathy + code-simplifier가 적당하다. Karpathy가 과잉 수정을 막고, code-simplifier가 작성 후 자동으로 정리한다.
 
 ### 새 기능 개발 (중간 규모)
 
-```
-✅ Karpathy + feature-dev
-```
-
-feature-dev가 탐색 → 설계 → 구현 → 리뷰 순서를 잡아주고, Karpathy가 각 단계에서 코드 품질을 지킨다.
+Karpathy + feature-dev. feature-dev가 탐색 → 설계 → 구현 → 리뷰 순서를 잡아주고, Karpathy가 각 단계에서 코드 품질을 지킨다.
 
 ### 대규모 기능 개발, TDD 기반 프로젝트
 
-```
-✅ Superpowers (Karpathy 원칙을 내포)
-```
+Superpowers 하나로 커버된다. brainstorming → writing-plans → TDD → subagent-review가 feature-dev + Karpathy의 역할을 모두 한다.
 
-Superpowers의 brainstorming → writing-plans → TDD → subagent-review가 feature-dev + Karpathy의 역할을 모두 커버한다.
-
-### 정리하면
+### 정리
 
 | 작업 규모 | 추천 조합 |
 |-----------|-----------|
@@ -209,24 +172,15 @@ Superpowers의 brainstorming → writing-plans → TDD → subagent-review가 fe
 
 ## 4개 다 필요한가?
 
-**결론부터: 전부 설치해도 충돌하지 않는다. 하지만 전부 필요하진 않다.**
+전부 설치해도 충돌하진 않는다. 그렇다고 전부 필요한 것도 아니다.
 
-### 추천 조합: Karpathy + Superpowers
+개인적으로는 Karpathy + Superpowers 조합으로 충분하다고 본다.
 
-이유:
+첫째, Superpowers가 feature-dev의 상위호환이다. feature-dev의 "탐색 → 설계 → 구현 → 리뷰"를 Superpowers의 brainstorming → writing-plans → TDD → code-review가 더 엄격하게 커버한다. 거기에 TDD 강제, 체계적 디버깅, 합리화 방지까지 붙는다.
 
-1. **Superpowers가 feature-dev의 상위호환이다.**
-   - feature-dev의 "탐색 → 설계 → 구현 → 리뷰"를 Superpowers의 brainstorming → writing-plans → TDD → code-review가 더 엄격하게 커버한다.
-   - Superpowers는 추가로 TDD 강제, 체계적 디버깅, 합리화 방지까지 제공한다.
+둘째, Karpathy와 Superpowers는 상호 보완적이다. Superpowers는 "어떤 프로세스로 일할 것인가"(HOW)를, Karpathy는 "어떤 태도로 코드를 쓸 것인가"(WHAT)를 다룬다. Superpowers가 TDD를 강제해도 테스트 코드 자체가 과잉 엔지니어링될 수 있는데, Karpathy가 이걸 막아준다.
 
-2. **Karpathy는 Superpowers와 상호 보완적이다.**
-   - Superpowers = "어떤 프로세스로 일할 것인가" (HOW)
-   - Karpathy = "어떤 태도로 코드를 쓸 것인가" (WHAT)
-   - Superpowers가 TDD를 강제해도, 테스트 코드 자체가 과잉 엔지니어링될 수 있다. Karpathy가 이를 방지한다.
-
-3. **code-simplifier는 선택사항이다.**
-   - Superpowers의 code-review + Karpathy의 Simplicity First가 이미 코드 품질을 잡아준다.
-   - 추가 자동 정리가 필요하면 설치해도 좋지만, 필수는 아니다.
+셋째, code-simplifier는 선택사항이다. Superpowers의 code-review + Karpathy의 Simplicity First가 이미 코드 품질을 잡아주기 때문에, 추가 자동 정리가 필요하면 설치해도 좋고 아니면 그만이다.
 
 ```
 필수: Karpathy + Superpowers
@@ -239,7 +193,7 @@ Superpowers의 brainstorming → writing-plans → TDD → subagent-review가 fe
 
 ### Karpathy Guidelines (스킬)
 
-`~/.claude/skills/karpathy-guidelines/` 디렉토리에 `SKILL.md` 파일을 생성하거나, CLAUDE.md에 원칙을 직접 작성한다.
+`~/.claude/skills/karpathy-guidelines/` 디렉토리에 `SKILL.md`를 생성하거나, CLAUDE.md에 원칙을 직접 작성한다.
 
 ```bash title="GitHub에서 가져오기"
 git clone https://github.com/forrestchang/andrej-karpathy-skills.git ~/.claude/skills/karpathy-guidelines
@@ -251,7 +205,7 @@ git clone https://github.com/forrestchang/andrej-karpathy-skills.git ~/.claude/s
 claude plugin add superpowers
 ```
 
-세션 시작 시 자동으로 활성화된다. 별도 호출 불필요.
+세션 시작 시 자동으로 활성화된다. 별도 호출은 필요 없다.
 
 ### code-simplifier (플러그인)
 
@@ -264,9 +218,9 @@ claude plugin add code-simplifier
 Claude Code 내장 스킬이거나 커뮤니티에서 설치한다. `/feature-dev`로 호출.
 
 
-## 정리
+## 마치며
 
-4가지 도구는 같은 목적("더 나은 코드")을 향하지만, 각각 다른 레이어에서 작동한다.
+4가지 도구는 "더 나은 코드"라는 같은 목적을 향하지만, 각자 다른 레이어에서 동작한다.
 
 ```
                     코드 작성 전          코드 작성 중          코드 작성 후
@@ -277,9 +231,9 @@ feature-dev        코드 탐색+설계       구현                  코드 리
 code-simplifier    -                   -                    자동 정리
 ```
 
-- **Karpathy** = 마인드셋 (항상 켜놓는 기본값)
-- **Superpowers** = 방법론 (프로세스를 구조화)
-- **feature-dev** = 워크플로우 (단계를 밟아감)
-- **code-simplifier** = 자동화 (끝나면 정리)
+- Karpathy: 마인드셋. 항상 켜놓는 기본값
+- Superpowers: 방법론. 프로세스를 구조화함
+- feature-dev: 워크플로우. 단계를 밟아감
+- code-simplifier: 자동화. 끝나면 정리
 
-**가장 실용적인 조합은 Karpathy + Superpowers다.** 마인드셋과 방법론을 동시에 잡으면, 나머지는 자연스럽게 따라온다.
+실무에서는 Karpathy + Superpowers 조합이 가장 무난하다.
