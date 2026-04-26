@@ -12,7 +12,7 @@ seriesOrder: 2
 
 사용자가 Claude Code에 "검색 기능 만들자"라고 입력한다. 에이전트가 코드를 쓰기 시작할 거라고 기대하지만, 실제로 벌어지는 일은 다르다. 에이전트는 프로젝트 파일을 둘러보더니, 질문을 던진다. "전체 텍스트 검색인가요, 아니면 태그 기반 필터링인가요?" 하나의 질문에 답하면, 다음 질문이 온다. "검색 결과 페이지를 새로 만들 건가요, 기존 목록 페이지에 통합할 건가요?"
 
-코드를 쓰기 전에 질문을 반복하는 이 행동은 brainstorming 스킬이 만들어낸다. 이 글은 그 스킬의 원문을 역추적하며, 아이디어가 설계서가 되기까지의 과정을 해부한다.
+코드를 쓰기 전에 질문을 반복하는 이 행동은 brainstorming 스킬이 만들어낸다. 이 글은 그 스킬의 원문을 분석하며, 아이디어가 설계서로 구체화되는 과정을 살펴본다.
 
 ---
 
@@ -23,28 +23,28 @@ seriesOrder: 2
 brainstorming 스킬의 첫 번째 제약은 HARD-GATE다.
 
 ```
-Do NOT invoke any implementation skill, write any code, scaffold any project,
-or take any implementation action until you have presented a design and the user
-has approved it. This applies to EVERY project regardless of perceived simplicity.
+설계를 제시하고 사용자가 승인하기 전까지는 구현 스킬을 호출하거나, 코드를 작성하거나, 
+프로젝트를 스캐폴딩하거나, 어떤 구현 행위도 하지 말 것. 
+이는 단순해 보이는 프로젝트를 포함한 모든 프로젝트에 적용된다.
 ```
 
-이 게이트는 에이전트가 설계를 제시하고 사용자 승인을 받기 전까지 어떤 구현 행위도 하지 못하게 차단한다. 코드 작성, 프로젝트 스캐폴딩, 구현 스킬 호출 — 전부 막힌다.
+이 게이트는 에이전트가 설계를 제시하고 사용자의 승인을 받기 전까지 어떤 구현 행위도 할 수 없도록 차단한다. 코드 작성, 프로젝트 스캐폴딩, 구현 스킬 호출 — 전부 금지된다.
 
 ### 왜 필요한가
 
-LLM은 action bias가 있다. 요청을 받으면 곧바로 실행에 옮기려는 경향이다. "검색 기능 만들자"를 들으면 즉시 `SearchBar` 컴포넌트를 만들거나 API 라우트를 작성하려 한다. 결과물이 빠르게 나오지만, 방향이 틀렸을 때의 비용이 크다. 전체 텍스트 검색을 원했는데 태그 필터링을 구현했다면, 코드를 전부 버려야 한다.
+LLM은 행동 편향(action bias)이 있다. 요청을 받으면 곧바로 실행에 옮기려는 경향이다. "검색 기능 만들자"를 들으면 즉시 `SearchBar` 컴포넌트를 만들거나 API 라우트를 작성하려 한다. 결과물이 빠르게 나오지만, 방향이 잘못되었을 때의 비용이 크다. 전체 텍스트 검색을 원했는데 태그 필터링을 구현했다면, 작성한 코드를 모두 폐기해야 한다.
 
-HARD-GATE는 이 action bias를 강제로 차단한다. 설계가 승인되기 전까지 구현 경로를 아예 열어주지 않는다.
+HARD-GATE는 이 행동 편향을 강제로 차단한다. 설계가 승인되기 전까지 구현 경로를 열지 않는다.
 
 ### "This Is Too Simple To Need A Design" 안티패턴
 
 HARD-GATE에는 예외가 없다. 원문이 이를 별도 섹션으로 명시한다.
 
 ```
-Every project goes through this process. A todo list, a single-function utility,
-a config change — all of them. "Simple" projects are where unexamined assumptions
-cause the most wasted work. The design can be short (a few sentences for truly
-simple projects), but you MUST present it and get approval.
+모든 프로젝트가 이 과정을 거친다. 할 일 목록, 단일 함수 유틸리티, 설정 변경 — 전부다. 
+"단순한" 프로젝트에서야말로 검증 안 된 가정이 가장 많은 낭비를 만든다. 
+설계는 짧을 수 있다 (정말 단순한 프로젝트면 몇 문장이면 충분).
+하지만 반드시 설계를 제시하고 승인을 받아야 한다.
 ```
 
 todo 리스트, 단일 함수 유틸리티, 설정 변경 — 전부 brainstorming을 거친다. 핵심 논리는 이렇다: 단순해 보이는 프로젝트에서 검증 안 된 가정이 가장 많은 낭비를 만든다. "검색 기능"이 단순해 보여도, 검색 범위, 인덱싱 전략, UI 배치, 기존 라우팅과의 통합 등 검증이 필요한 가정이 숨어 있다.
@@ -60,81 +60,81 @@ todo 리스트, 단일 함수 유틸리티, 설정 변경 — 전부 brainstormi
 brainstorming 스킬은 9단계 체크리스트를 정의한다. 에이전트는 이 순서를 반드시 따라야 한다.
 
 ```
-1. Explore project context — check files, docs, recent commits
-2. Offer visual companion (if topic will involve visual questions)
-3. Ask clarifying questions — one at a time, understand purpose/constraints/success criteria
-4. Propose 2-3 approaches — with trade-offs and your recommendation
-5. Present design — in sections scaled to their complexity, get user approval after each section
-6. Write design doc — save to docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md and commit
-7. Spec self-review — quick inline check for placeholders, contradictions, ambiguity, scope
-8. User reviews written spec — ask user to review the spec file before proceeding
-9. Transition to implementation — invoke writing-plans skill to create implementation plan
+1. 프로젝트 컨텍스트 탐색 — 파일, 문서, 최근 커밋 확인
+2. 시각 자료 제안 (주제가 시각적 질문을 포함할 경우)
+3. 명확히 하는 질문 제시 — 한 번에 하나씩, 목적/제약/성공 기준 파악
+4. 2-3가지 접근법 제안 — 트레이드오프와 추천 포함
+5. 설계 제시 — 복잡도에 따라 섹션으로 나누어 제시, 각 섹션마다 사용자 승인 획득
+6. 설계 문서 작성 — docs/superpowers/specs/YYYY-MM-DD-<주제>-design.md에 저장하고 커밋
+7. 설계 자체 검토 — 플레이스홀더, 모순, 모호함, 범위에 대한 빠른 인라인 점검
+8. 사용자 작성 설계 검토 — 진행 전 사용자에게 설계 파일 검토 요청
+9. 구현으로의 전이 — writing-plans 스킬을 호출하여 구현 계획 생성
 ```
 
 ### 1단계: 프로젝트 컨텍스트 탐색이 첫 번째인 이유
 
 체크리스트의 1번은 질문이 아니다. 파일, 문서, 최근 커밋을 확인하는 것이다. 이것이 질문보다 먼저 오는 이유가 있다.
 
-기존 코드를 모르고 설계하면 충돌한다. "검색 기능 만들자"에 대해 에이전트가 프로젝트를 탐색하지 않고 바로 질문을 던지면, 이미 존재하는 검색 관련 코드를 모른 채 설계를 진행하게 된다. 프로젝트에 이미 `fuse.js`가 설치되어 있거나, 검색 인덱스를 생성하는 스크립트가 있을 수 있다. 탐색 없이 설계하면 기존 코드와 중복되거나 충돌하는 설계가 나온다.
+기존 코드를 모르고 설계하면 충돌한다. "검색 기능 만들자"에 대해 에이전트가 프로젝트를 먼저 탐색하지 않고 바로 질문을 던지면, 이미 존재하는 검색 관련 코드를 알지 못한 채 설계를 진행하게 된다. 프로젝트에 이미 `fuse.js`가 설치되어 있거나, 검색 인덱스를 생성하는 스크립트가 있을 수 있다. 탐색 없이 설계하면 기존 코드와 중복되거나 충돌하는 설계가 나온다.
 
 원문의 "Understanding the idea" 섹션이 이를 뒷받침한다:
 
 ```
-Check out the current project state first (files, docs, recent commits)
+먼저 현재 프로젝트 상태를 확인하라 (파일, 문서, 최근 커밋)
 ```
 
 ### 3단계: "한 번에 하나씩 질문" 제약
 
 ```
-Ask questions one at a time to refine the idea
-Only one question per message
+아이디어를 구체화하기 위해 한 번에 하나씩 질문하라
+메시지당 질문은 하나만
 ```
 
-왜 한 번에 여러 질문을 하면 안 되는가? 질문 폭탄은 사용자 과부하를 일으킨다. 다섯 개의 질문이 한 번에 오면, 사용자는 각 질문을 깊이 고민하지 않고 대충 답변하게 된다. 대충 나온 답변 위에 세운 설계는 나중에 무너진다.
+왜 한 번에 여러 질문을 하면 안 되는가? 질문 폭탄은 사용자 과부하를 일으킨다. 다섯 개의 질문이 한 번에 오면, 사용자는 각 질문을 깊이 고민하지 않고 대충 답변하게 된다. 대충 나온 답변 위에 세운 설계는 나중에 부실하게 된다.
 
 원문은 이 제약의 보완 규칙도 제시한다:
 
 ```
-Prefer multiple choice questions when possible, but open-ended is fine too
+가능할 땐 객관식 질문을 선호하되, 개방형 질문도 괜찮다
 ```
 
-객관식 질문이 선호되는 이유는 사용자의 인지 부하를 더 줄이기 때문이다. "검색 범위를 어떻게 할까요?"보다 "전체 텍스트 검색, 태그 기반 필터링, 둘 다 중 어떤 걸 원하시나요?"가 답하기 쉽다.
+객관식 질문이 선호되는 이유는 사용자의 인지 부하를 더 줄이기 때문이다. "검색 범위를 어떻게 정할까요?"보다 "전체 텍스트 검색, 태그 기반 필터링, 둘 다 중 어떤 것을 원하시나요?"가 답하기 훨씬 쉽다.
 
-### 4단계: 2-3가지 접근 제안이 필수인 이유
+### 4단계: 2-3가지 접근법 제안이 필수인 이유
 
 ```
-Propose 2-3 different approaches with trade-offs
-Lead with your recommended option and explain why
+트레이드오프를 포함한 2-3가지 다른 접근법을 제안하라
+추천하는 옵션부터 제시하고 그 이유를 설명하라
 ```
 
-첫 아이디어에 고착되는 것을 방지한다. 에이전트가 하나의 접근법만 제시하면, 사용자는 그것이 유일한 선택지라고 생각하고 승인한다. 2-3가지를 제시하면 비교가 가능해지고, 트레이드오프를 인식할 수 있다.
+첫 번째 아이디어에 고착되는 것을 방지한다. 에이전트가 하나의 접근법만 제시하면, 사용자는 그것이 유일한 선택지라고 생각하고 승인한다. 2-3가지를 제시하면 비교가 가능해지고, 각 접근법의 트레이드오프를 명확히 인식할 수 있다.
 
-검색 기능의 예를 들면:
+검색 기능의 예시:
 
-- 접근 1: 클라이언트 사이드 검색 (fuse.js) — 빠르지만 콘텐츠가 많아지면 번들 크기 증가
-- 접근 2: 빌드 타임 인덱스 생성 — 초기 로드는 빠르지만 빌드 시간 증가
-- 접근 3: 외부 검색 서비스 (Algolia 등) — 확장성 좋지만 외부 의존성 추가
+- 접근법 1: 클라이언트 측 검색 (fuse.js) — 빠르지만 콘텐츠 증가 시 번들 크기 증가
+- 접근법 2: 빌드 타임 인덱스 생성 — 초기 로드는 빠르지만 빌드 시간 증가
+- 접근법 3: 외부 검색 서비스 (Algolia 등) — 확장성 우수하나 외부 의존성 추가
 
-하나만 제시했다면 사용자는 트레이드오프를 인식하지 못한다.
+하나만 제시했다면 사용자는 각 접근법의 트레이드오프를 인식하지 못한다.
 
 ### 5-8단계: 게이트 구조
 
 5단계부터 8단계까지는 연쇄적인 승인 게이트를 형성한다.
 
-- **5단계 (Present design)**: 설계를 섹션별로 제시하고, 각 섹션마다 사용자 승인을 받는다. 전체 설계를 한 번에 던지지 않는다.
-- **6단계 (Write design doc)**: 승인된 설계를 문서로 작성한다.
-- **7단계 (Spec self-review)**: 에이전트가 작성한 문서를 스스로 검토한다. 원문이 검토 항목을 명시한다:
+- **5단계 (설계 제시)**: 설계를 섹션별로 제시하고, 각 섹션마다 사용자 승인을 받는다. 전체 설계를 한 번에 제시하지 않는다.
+- **6단계 (설계 문서 작성)**: 승인된 설계를 문서로 작성한다.
+- **7단계 (설계 자체 검토)**: 에이전트가 작성한 문서를 스스로 검토한다. 원문이 검토 항목을 명시한다:
 
 ```
-1. Placeholder scan: Any "TBD", "TODO", incomplete sections, or vague requirements? Fix them.
-2. Internal consistency: Do any sections contradict each other?
-3. Scope check: Is this focused enough for a single implementation plan?
-4. Ambiguity check: Could any requirement be interpreted two different ways?
+1. 플레이스홀더 스캔: "TBD", "TODO", 불완전한 섹션, 모호한 요구사항은 없는가? 있으면 수정하라.
+2. 내부 일관성: 섹션 간에 모순은 없는가?
+3. 범위 검사: 이 내용이 단일 구현 계획으로 충분히 초점화되어 있는가?
+4. 모호함 검사: 어떤 요구사항이 두 가지로 해석될 여지는 없는가?
 ```
 
-- **8단계 (User reviews written spec)**: 사용자가 문서를 직접 검토한다.
+- **8단계 (사용자 작성 설계 검토)**: 사용자가 문서를 직접 검토한다.
 
-이 순서가 중요하다. Spec self-review가 User review보다 먼저 오는 이유는, 에이전트가 발견할 수 있는 명백한 문제(placeholder, 모순, 모호함)를 사용자에게 넘기지 않기 위해서다. 사용자는 에이전트가 잡을 수 없는 비즈니스 요구사항 수준의 검토에 집중해야 한다.
+이 순서가 중요하다. 설계 자체 검토가 사용자 검토보다 먼저 오는 이유는, 에이전트가 발견할 수 있는 명백한 문제(플레이스홀더, 모순, 모호함)를 사용자에게 넘기지 않기 위해서다. 사용자는 에이전트가 잡을 수 없는 비즈니스 요구사항 수준의 검토에 집중해야 한다.
 
 ### 9단계: writing-plans로의 전이
 
@@ -150,31 +150,31 @@ brainstorming 스킬은 프로세스 흐름을 digraph로 명시한다.
 
 ```text
 digraph brainstorming {
-    "Explore project context" [shape=box];
-    "Visual questions ahead?" [shape=diamond];
-    "Offer Visual Companion\n(own message, no other content)" [shape=box];
-    "Ask clarifying questions" [shape=box];
-    "Propose 2-3 approaches" [shape=box];
-    "Present design sections" [shape=box];
-    "User approves design?" [shape=diamond];
-    "Write design doc" [shape=box];
-    "Spec self-review\n(fix inline)" [shape=box];
-    "User reviews spec?" [shape=diamond];
-    "Invoke writing-plans skill" [shape=doublecircle];
+    "프로젝트 컨텍스트 탐색" [shape=box];
+    "시각적 질문 있는가?" [shape=diamond];
+    "시각 자료 제안\n(별도 메시지, 다른 내용 없음)" [shape=box];
+    "명확히 하는 질문 제시" [shape=box];
+    "2-3가지 접근법 제안" [shape=box];
+    "설계 섹션 제시" [shape=box];
+    "사용자 설계 승인?" [shape=diamond];
+    "설계 문서 작성" [shape=box];
+    "설계 자체 검토\n(인라인 수정)" [shape=box];
+    "사용자 설계 검토?" [shape=diamond];
+    "writing-plans 스킬 호출" [shape=doublecircle];
 
-    "Explore project context" -> "Visual questions ahead?";
-    "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
-    "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
-    "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
-    "Ask clarifying questions" -> "Propose 2-3 approaches";
-    "Propose 2-3 approaches" -> "Present design sections";
-    "Present design sections" -> "User approves design?";
-    "User approves design?" -> "Present design sections" [label="no, revise"];
-    "User approves design?" -> "Write design doc" [label="yes"];
-    "Write design doc" -> "Spec self-review\n(fix inline)";
-    "Spec self-review\n(fix inline)" -> "User reviews spec?";
-    "User reviews spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
+    "프로젝트 컨텍스트 탐색" -> "시각적 질문 있는가?";
+    "시각적 질문 있는가?" -> "시각 자료 제안\n(별도 메시지, 다른 내용 없음)" [label="예"];
+    "시각적 질문 있는가?" -> "명확히 하는 질문 제시" [label="아니오"];
+    "시각 자료 제안\n(별도 메시지, 다른 내용 없음)" -> "명확히 하는 질문 제시";
+    "명확히 하는 질문 제시" -> "2-3가지 접근법 제안";
+    "2-3가지 접근법 제안" -> "설계 섹션 제시";
+    "설계 섹션 제시" -> "사용자 설계 승인?";
+    "사용자 설계 승인?" -> "설계 섹션 제시" [label="아니오, 수정"];
+    "사용자 설계 승인?" -> "설계 문서 작성" [label="예"];
+    "설계 문서 작성" -> "설계 자체 검토\n(인라인 수정)";
+    "설계 자체 검토\n(인라인 수정)" -> "사용자 설계 검토?";
+    "사용자 설계 검토?" -> "설계 문서 작성" [label="변경 요청"];
+    "사용자 설계 검토?" -> "writing-plans 스킬 호출" [label="승인"];
 }
 ```
 
@@ -190,7 +190,7 @@ digraph brainstorming {
 
 사용자가 작성된 스펙 문서를 검토한 뒤 변경을 요청하면 `"changes requested"` 경로를 따라 문서 작성 단계로 돌아간다. 여기서 주목할 점은 Spec self-review 단계가 아닌 Write design doc 단계로 돌아간다는 것이다. 사용자가 요청한 변경은 문서 자체를 다시 써야 하는 수준의 변경이므로, self-review만으로는 부족하다.
 
-두 게이트의 설계 의도는 동일하다: 사용자의 명시적 승인 없이 다음 단계로 진행하지 않는다. 첫 번째 게이트는 설계의 방향을 검증하고, 두 번째 게이트는 문서화된 설계의 정확성을 검증한다. 같은 설계를 두 번 검증하는 것처럼 보이지만, 실제로는 다른 것을 검증한다. 구두 설명과 문서는 다르다. 대화에서 합의된 내용이 문서로 옮겨지면서 누락되거나 왜곡될 수 있다.
+두 게이트의 설계 의도는 동일하다: 사용자의 명시적 승인 없이 다음 단계로 진행하지 않는다. 첫 번째 게이트는 설계의 방향을 검증하고, 두 번째 게이트는 문서화된 설계의 정확성을 검증한다. 같은 설계를 두 번 검증하는 것처럼 보이지만, 실제로는 다른 부분을 검증한다. 구두 설명과 문서는 다르다. 대화에서 합의된 내용이 문서로 옮겨지면서 누락되거나 왜곡될 수 있기 때문이다.
 
 ### 터미널 노드
 
@@ -205,9 +205,9 @@ digraph의 터미널 노드는 `"Invoke writing-plans skill"` 하나뿐이다. `
 체크리스트 2단계에서 Visual Companion을 제안할 수 있다. 원문이 이 제안의 형식을 엄격히 제약한다:
 
 ```
-This offer MUST be its own message. Do not combine it with clarifying questions,
-context summaries, or any other content. The message should contain ONLY the offer
-above and nothing else. Wait for the user's response before continuing.
+이 제안은 반드시 별도의 메시지여야 한다. 명확히 하는 질문, 컨텍스트 요약, 
+또는 다른 어떤 내용과도 함께하면 안 된다. 메시지는 위의 제안만 포함하고 
+다른 것은 없어야 한다. 사용자의 응답을 기다린 뒤 계속 진행하라.
 ```
 
 Visual Companion 제안은 반드시 별도의 메시지여야 한다. 질문이나 요약과 합쳐서 보내면 안 된다. 이 제약의 이유는 명확하다: 동의와 질문을 섞으면 동의가 묻힌다. 사용자가 질문에 답하면서 Visual Companion 동의를 건너뛰거나, 의도하지 않게 수락할 수 있다. 동의는 독립된 의사결정이므로 독립된 메시지에서 처리해야 한다.
@@ -215,16 +215,15 @@ Visual Companion 제안은 반드시 별도의 메시지여야 한다. 질문이
 동의를 받은 뒤에도 모든 질문에 Visual Companion을 쓰는 것은 아니다:
 
 ```
-Even after the user accepts, decide FOR EACH QUESTION whether to use the browser
-or the terminal. The test: would the user understand this better by seeing it
-than reading it?
+사용자가 동의한 뒤에도 각 질문마다 브라우저를 쓸지 터미널을 쓸지 결정하라.
+테스트: 사용자가 읽는 것보다 보는 것으로 더 잘 이해할까?
 ```
 
 브라우저는 시각적 콘텐츠(목업, 와이어프레임, 레이아웃 비교)에, 터미널은 텍스트 콘텐츠(요구사항 질문, 트레이드오프 목록, 범위 결정)에 사용한다. UI 관련 주제라고 해서 자동으로 시각적 질문이 되는 것은 아니다. 원문의 예시가 이를 잘 구분한다:
 
 ```
-"What does personality mean in this context?" — conceptual question, use the terminal.
-"Which wizard layout works better?" — visual question, use the browser.
+"이 맥락에서 '개성'의 의미는?" — 개념적 질문, 터미널 사용.
+"어느 마법사 레이아웃이 더 나을까?" — 시각적 질문, 브라우저 사용.
 ```
 
 ### 터미널 상태: 스킬 간 전이 규칙
@@ -232,14 +231,14 @@ than reading it?
 digraph 아래에 원문이 터미널 상태를 명시한다:
 
 ```
-The terminal state is invoking writing-plans. Do NOT invoke frontend-design,
-mcp-builder, or any other implementation skill. The ONLY skill you invoke after
-brainstorming is writing-plans.
+터미널 상태는 writing-plans를 호출하는 것이다. frontend-design, mcp-builder, 
+또는 다른 구현 스킬을 호출하지 말 것. brainstorming 뒤에 호출하는 유일한 
+스킬은 writing-plans다.
 ```
 
 brainstorming의 출구는 writing-plans 하나뿐이다. frontend-design, mcp-builder 등 구현 스킬로 직접 전이할 수 없다. 이 제약이 왜 필요한가?
 
-스킬 간 전이 규칙이 없으면, brainstorming에서 곧바로 구현 스킬로 뛰어드는 경로가 생긴다. 설계가 승인되었으니 바로 프론트엔드를 만들면 될 것 같지만, 그 사이에 구현 계획(writing-plans)이 빠진다. 구현 계획 없이 구현을 시작하면, 설계에서 합의된 순서와 의존 관계가 무시되고, 에이전트가 자의적으로 구현 순서를 결정하게 된다.
+스킬 간 전이 규칙이 없으면, brainstorming에서 곧바로 구현 스킬로 뛰어드는 경로가 생긴다. 설계가 승인되었으니 바로 프론트엔드를 만들면 될 것 같지만, 그 사이에 구현 계획(writing-plans)이 빠진다. 구현 계획 없이 구현을 시작하면, 설계에서 합의된 순서와 의존성이 무시되고, 에이전트가 자의적으로 구현 순서를 결정하게 된다.
 
 brainstorming → writing-plans → 구현 스킬, 이 순서가 강제되는 것이다. 각 스킬이 자신의 출구를 명시함으로써, 전체 워크플로우의 순서가 보장된다.
 
@@ -252,8 +251,8 @@ brainstorming 스킬의 전체 구조를 정리하면:
 1. HARD-GATE가 설계 없는 구현을 차단한다
 2. 9단계 체크리스트가 아이디어를 설계로 구체화하는 순서를 정의한다
 3. digraph의 이중 승인 게이트가 설계와 문서 모두에서 사용자 검증을 강제한다
-4. 터미널 상태가 brainstorming의 유일한 출구를 writing-plans로 고정한다
+4. 터미널 상태가 brainstorming의 유일한 출구를 writing-plans로 정한다
 
-brainstorming이 끝나면 writing-plans가 시작된다. "검색 기능 만들자"라는 아이디어가 승인된 설계서가 되었다면, 다음 단계는 그 설계서를 실행 가능한 구현 계획으로 바꾸는 것이다.
+brainstorming이 끝나면 writing-plans가 시작된다. "검색 기능 만들자"라는 아이디어가 승인된 설계서가 되었다면, 다음 단계는 그 설계서를 실행 가능한 구현 계획으로 변환하는 것이다.
 
-다음 편에서는 writing-plans 스킬을 해부한다.
+다음 편에서는 writing-plans 스킬을 분석한다.
