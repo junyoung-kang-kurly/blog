@@ -1,0 +1,55 @@
+---
+title: "자바 자료구조 쇼츠 (1) — ArrayList: 기본값이 되는 이유"
+description: "인덱스 조회 O(1), 캐시 친화적인 연속 메모리. 자바에서 리스트가 필요하면 일단 ArrayList인 이유와, 피해야 할 순간을 1분 안에 정리한다."
+date: "2026-10-16"
+published: true
+tags: ["Java", "자료구조", "Collections", "ArrayList", "쇼츠"]
+series: "java-data-structures-shorts"
+seriesOrder: 1
+---
+
+> **30초 요약** — 내부는 그냥 **배열**이다. 꽉 차면 1.5배 큰 배열로 복사한다.
+> 조회는 빠르고, 끝에 추가도 빠르고, **중간 삽입/삭제만 느리다.**
+
+## 어떻게 생겼나
+
+- 내부 필드는 `Object[] elementData` 하나와 `size`가 전부.
+- 첫 `add` 때 용량 10짜리 배열을 만들고, 꽉 차면 `old + (old >> 1)` = **1.5배**로 늘려 `Arrays.copyOf`로 옮긴다.
+- 원소가 메모리에 **연속**으로 붙어 있어서 CPU 캐시 효율이 좋다.
+
+## 강점
+
+| 연산 | 비용 |
+|------|------|
+| `get(i)` / `set(i, v)` | **O(1)** |
+| 끝에 `add(v)` | 분할 상환 **O(1)** |
+| 순회 | 매우 빠름 (연속 메모리) |
+
+## 약점
+
+- `add(0, v)`, `remove(0)` 처럼 **앞/중간 수정은 O(n)** — 뒤 원소를 전부 한 칸씩 민다.
+- `contains`, `indexOf`는 **선형 탐색 O(n)**.
+- 스레드 안전하지 않다. 순회 중 구조를 바꾸면 `ConcurrentModificationException`(fail-fast).
+
+## 이럴 때 쓴다
+
+- DB 조회 결과, API 응답 목록처럼 **모아서 순회하는** 거의 모든 경우
+- 인덱스로 자주 접근하는 경우 (페이지네이션, 정렬 후 이분 탐색)
+- 크기를 알면 미리 잡아서 재할당을 없앤다
+
+```java
+// 크기를 알면 초기 용량을 지정 → 중간 복사 0번
+List<Order> orders = new ArrayList<>(rows.size());
+for (Row row : rows) {
+    orders.add(Order.from(row));
+}
+
+// 순회 중 삭제는 removeIf로 (직접 for-each + remove는 CME)
+orders.removeIf(Order::isCanceled);
+```
+
+## 기억할 것
+
+- "리스트 뭐 쓰지?" → **고민 말고 ArrayList.**
+- 앞에서 자주 빼야 하면 → `ArrayDeque` (2편)
+- 바뀌지 않는 목록이면 → `List.of(...)` (불변, null 불가)

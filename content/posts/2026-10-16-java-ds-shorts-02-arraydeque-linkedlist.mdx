@@ -1,0 +1,62 @@
+---
+title: "자바 자료구조 쇼츠 (2) — ArrayDeque vs LinkedList: 스택·큐는 이걸로"
+description: "Stack 클래스도, LinkedList도 아닌 ArrayDeque가 스택과 큐의 정답인 이유. LinkedList가 생각보다 느린 이유까지 1분 정리."
+date: "2026-10-16"
+published: true
+tags: ["Java", "자료구조", "Collections", "ArrayDeque", "LinkedList", "쇼츠"]
+series: "java-data-structures-shorts"
+seriesOrder: 2
+---
+
+> **30초 요약** — 스택이든 큐든 **`ArrayDeque`** 하나로 끝낸다.
+> `Stack`은 레거시(동기화 오버헤드), `LinkedList`는 노드마다 객체를 만들어서 대부분 더 느리다.
+
+## ArrayDeque는 어떻게 생겼나
+
+- **원형 배열(circular buffer)** + `head`, `tail` 인덱스.
+- 앞/뒤 어디에 넣고 빼도 인덱스만 움직이면 되니 **양 끝 연산이 모두 O(1)**.
+- 꽉 차면 배열을 키워 복사한다 (ArrayList와 같은 전략).
+
+## LinkedList는 왜 느린가
+
+- 원소 하나당 `Node(item, prev, next)` 객체가 하나씩 생긴다 → **메모리 오버헤드 + GC 부담**.
+- 노드가 힙 여기저기 흩어져 있어 **캐시 미스**가 잦다.
+- "중간 삽입 O(1)"은 *그 위치의 노드를 이미 쥐고 있을 때*만 맞다. `add(i, v)`는 찾아가는 데 O(n).
+- `get(i)`는 **O(n)**. 반복문에서 `list.get(i)`를 돌리면 O(n²)이 된다.
+
+## 비교
+
+| | ArrayDeque | LinkedList |
+|---|---|---|
+| 양 끝 추가/삭제 | O(1) | O(1) |
+| 인덱스 조회 | 지원 안 함 | O(n) |
+| 메모리 | 배열 하나 | 원소마다 노드 객체 |
+| null 원소 | **불가** | 가능 |
+| 실측 속도 | 대체로 빠름 | 대체로 느림 |
+
+## 이럴 때 쓴다
+
+- **스택**: 괄호 검사, DFS, undo 기록
+- **큐**: BFS, 작업 대기열(단일 스레드)
+- **슬라이딩 윈도우 최댓값**(단조 덱) 같은 알고리즘
+
+```java
+// 스택
+Deque<Character> stack = new ArrayDeque<>();
+stack.push('(');
+char top = stack.pop();
+
+// 큐 (BFS)
+Deque<Node> queue = new ArrayDeque<>();
+queue.offer(start);
+while (!queue.isEmpty()) {
+    Node cur = queue.poll();
+    for (Node next : cur.neighbors()) queue.offer(next);
+}
+```
+
+## 기억할 것
+
+- 변수 타입은 `Deque`로 선언 — `push/pop`(스택), `offer/poll`(큐) 둘 다 쓴다.
+- `new Stack<>()`은 쓰지 않는다.
+- 여러 스레드가 공유하는 큐라면 → `BlockingQueue` (8편)

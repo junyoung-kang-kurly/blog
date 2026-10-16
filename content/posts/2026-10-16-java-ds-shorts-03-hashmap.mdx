@@ -1,0 +1,62 @@
+---
+title: "자바 자료구조 쇼츠 (3) — HashMap: O(1)의 비밀과 함정"
+description: "버킷 배열, 로드 팩터 0.75, 충돌 시 트리화까지. HashMap이 평균 O(1)인 이유와 equals/hashCode를 잘못 짜면 생기는 일을 1분 정리."
+date: "2026-10-16"
+published: true
+tags: ["Java", "자료구조", "Collections", "HashMap", "쇼츠"]
+series: "java-data-structures-shorts"
+seriesOrder: 3
+---
+
+> **30초 요약** — 키의 `hashCode()`로 **버킷 위치를 바로 계산**해서 찾아간다. 그래서 평균 O(1).
+> 대신 **순서는 보장하지 않고**, 키의 `equals/hashCode`가 엉망이면 전부 무너진다.
+
+## 어떻게 생겼나
+
+1. `hash = h ^ (h >>> 16)` — 상위 비트를 섞어서 분포를 고르게
+2. `index = hash & (table.length - 1)` — 테이블 크기는 항상 2의 거듭제곱
+3. 같은 버킷에 여러 개 → **연결 리스트**로 잇는다
+4. 한 버킷에 **8개 이상**(테이블 크기 64 이상일 때) → **레드-블랙 트리**로 바꿔 최악도 O(log n)
+5. 원소 수가 `용량 × 0.75`(로드 팩터)를 넘으면 테이블을 **2배로 리사이즈**
+
+## 강점
+
+- `get`, `put`, `containsKey`, `remove` 모두 **평균 O(1)**
+- null 키 1개, null 값 허용
+- `getOrDefault`, `computeIfAbsent`, `merge` 같은 편의 메서드가 강력
+
+## 약점
+
+- **순회 순서 보장 없음** — 리사이즈 후 순서가 바뀔 수도 있다
+- 리사이즈 순간에 전체 재배치 비용이 든다
+- 스레드 안전하지 않다 → 동시 쓰기가 있으면 `ConcurrentHashMap` (8편)
+- 키 객체를 넣은 뒤 **필드를 바꾸면** hashCode가 달라져 다시는 못 찾는다
+
+## 이럴 때 쓴다
+
+- ID → 객체 캐시, 인덱스 만들기
+- 빈도 세기, 그룹핑
+- "이미 본 적 있나?" 중복 체크 (값이 필요 없으면 `HashSet`)
+
+```java
+// 빈도 세기
+Map<String, Integer> count = new HashMap<>();
+for (String word : words) {
+    count.merge(word, 1, Integer::sum);
+}
+
+// 그룹핑 — 없으면 만들고 넣기
+Map<Long, List<Order>> byUser = new HashMap<>();
+for (Order o : orders) {
+    byUser.computeIfAbsent(o.userId(), k -> new ArrayList<>()).add(o);
+}
+
+// 크기를 알면 미리 (Java 19+) — 리사이즈 없이 n개 수용
+Map<Long, User> users = HashMap.newHashMap(n);
+```
+
+## 기억할 것
+
+- 키로 쓸 클래스는 **불변** + `equals`와 `hashCode`를 **함께** 재정의 (`record`면 자동)
+- `new HashMap<>(n)`은 "n개 수용"이 아니라 "용량 n" — 0.75 때문에 중간에 리사이즈된다
+- 순서가 필요하면 → `LinkedHashMap`(4편), 정렬이 필요하면 → `TreeMap`(5편)

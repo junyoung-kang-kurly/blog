@@ -1,0 +1,60 @@
+---
+title: "자바 자료구조 쇼츠 (7) — PriorityQueue: 항상 가장 급한 것부터"
+description: "이진 힙 기반 PriorityQueue. 최솟값을 O(1)에 보고 O(log n)에 꺼내는 원리, Top-K 패턴, 순회 순서의 함정을 1분 정리."
+date: "2026-10-16"
+published: true
+tags: ["Java", "자료구조", "Collections", "PriorityQueue", "Heap", "쇼츠"]
+series: "java-data-structures-shorts"
+seriesOrder: 7
+---
+
+> **30초 요약** — 배열로 구현한 **이진 최소 힙**. 꺼내면 항상 **가장 작은(우선순위 높은) 원소**가 나온다.
+> 전체를 정렬하지 않고 "맨 위 하나"만 유지해서 빠르다.
+
+## 어떻게 생겼나
+
+- 배열 `queue[]`에 완전 이진 트리를 담는다. 부모 `i`의 자식은 `2i+1`, `2i+2`.
+- `offer` → 맨 끝에 넣고 위로 올리기(sift-up), `poll` → 루트를 빼고 마지막 원소를 내리기(sift-down).
+- 기본은 **최소 힙**. `Comparator.reverseOrder()`를 주면 최대 힙.
+
+## 강점
+
+| 연산 | 비용 |
+|------|------|
+| `peek()` | **O(1)** |
+| `offer()` / `poll()` | **O(log n)** |
+| 리스트로 한 번에 생성 | O(n) (heapify) |
+
+## 약점
+
+- `contains`, `remove(Object)`는 **O(n)**
+- **순회(for-each, toString)는 정렬 순서가 아니다** — 힙 배열 순서일 뿐
+- 우선순위가 같은 원소끼리는 **순서(FIFO) 보장 없음**
+- 스레드 안전하지 않다 → `PriorityBlockingQueue`
+
+## 이럴 때 쓴다
+
+- **Top-K**: 수백만 개 중 상위 10개 (크기 K 힙 유지 → O(n log K))
+- **다익스트라** 최단 경로, 이벤트 시뮬레이션
+- 마감 시각이 가장 이른 작업부터 처리하는 스케줄러
+- 정렬된 K개 리스트 병합
+
+```java
+// 상위 K개 — 크기 K인 "최소" 힙을 유지하는 게 포인트
+PriorityQueue<Product> heap =
+        new PriorityQueue<>(Comparator.comparingLong(Product::sales));
+for (Product p : products) {
+    heap.offer(p);
+    if (heap.size() > k) heap.poll(); // 가장 작은 걸 버림
+}
+// heap에 상위 K개가 남는다 (단, 순서는 정렬 아님)
+
+// 최대 힙
+PriorityQueue<Integer> maxHeap = new PriorityQueue<>(Comparator.reverseOrder());
+```
+
+## 기억할 것
+
+- "**매번 최솟값/최댓값 하나만**" 필요 → PriorityQueue
+- "전체가 정렬된 상태로 필요" → `TreeSet/TreeMap` 혹은 마지막에 한 번 `sort`
+- 정렬된 결과가 필요하면 `poll()`을 반복해서 꺼낸다 — 그대로 출력하지 말 것
