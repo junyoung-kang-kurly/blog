@@ -79,6 +79,14 @@ export default function RootLayout({
               </li>
               <li>
                 <Link
+                  href="/categories"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Categories
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/tags"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >

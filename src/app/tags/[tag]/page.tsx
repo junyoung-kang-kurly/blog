@@ -98,7 +98,7 @@ export default async function TagPage({ params }: TagPageProps) {
                     {formatDate(post.date)}
                   </span>
                   {post.tags.length > 0 && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {post.tags.map((postTag) => (
                         <Link
                           key={postTag}

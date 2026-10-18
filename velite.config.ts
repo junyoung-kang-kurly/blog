@@ -5,6 +5,7 @@ import rehypeSlug from "rehype-slug";
 import remarkBreaks from "remark-breaks";
 import remarkCjkFriendly from "remark-cjk-friendly";
 import remarkMath from "remark-math";
+import { categorySlugs } from "./src/lib/categories";
 
 const posts = defineCollection({
   name: "Post",
@@ -15,6 +16,7 @@ const posts = defineCollection({
       description: s.string().max(999),
       date: s.isodate(),
       published: s.boolean().default(true),
+      category: s.enum(categorySlugs),
       tags: s.array(s.string()).default([]),
       series: s.string().optional(),
       seriesOrder: s.number().optional(),

@@ -3,7 +3,8 @@ title: "계속 커지는 뷰모델 해결사례 "
 description: "태초에 다음과 같이 Order 를 OrderDto 로 반환하는 코드가 있었다.orderMapper는 다음과 같다. 단순히 Dto로 매핑을 해주는 간단한 코드 이다.OrderDto 는 사내에서 거의 모든 클라이언트가 사용중인 규격 이었고, 필요로 하는 모든 정보를 포함해"
 date: "2022-09-18"
 published: true
-tags: []
+category: "architecture"
+tags: ["api-design", "refactoring"]
 ---
 흔히 도메인 모델을 Dto 뷰모델로 반환을 하게 된다.
 그런데 뷰모델은 아주 큰 도메인 모델들을 클러스터링 해서 응답 해야 할때가 많다.

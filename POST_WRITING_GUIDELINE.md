@@ -40,7 +40,8 @@ title: "포스트 제목"
 description: "포스트에 대한 간단한 설명"
 date: "2024-12-30"
 published: true
-tags: ["태그1", "태그2"]
+category: "java-spring"
+tags: ["spring", "jpa"]
 ---
 ```
 
@@ -52,7 +53,8 @@ title: "포스트 제목"
 description: "포스트에 대한 간단한 설명"
 date: "2024-12-30"
 published: true
-tags: ["React", "Next.js", "프론트엔드"]
+category: "dev-tools"
+tags: ["nextjs", "react"]
 series: "series-slug"    # 시리즈 식별자 (선택)
 seriesOrder: 1           # 시리즈 내 순서 (선택)
 ---
@@ -68,9 +70,39 @@ seriesOrder: 1           # 시리즈 내 순서 (선택)
 | `description` | 문자열 | O | 포스트 설명 (최대 999자) |
 | `date` | 날짜 | O | 작성일 (ISO 형식: YYYY-MM-DD) |
 | `published` | 불리언 | O | 공개 여부 (권장 기본값: `true`) |
+| `category` | 문자열 | O | 카테고리 slug 1개 (아래 목록 중 하나, 그 외 값은 빌드 실패) |
 | `tags` | 배열 | O | 태그 목록 (비어 있어도 `[]`로 명시) |
 | `series` | 문자열 | X | 시리즈 식별자 (kebab-case) |
 | `seriesOrder` | 숫자 | X | 시리즈 내 순서 (1부터 시작) |
+
+### 카테고리
+
+카테고리는 글마다 정확히 하나를 고르는 1차 분류입니다. 홈 화면과 내비게이션에 노출되므로 **10개 이하**로 유지합니다.
+정의는 `src/lib/categories.ts` 한 곳에만 있고, `velite.config.ts`가 이 목록을 enum으로 검증합니다.
+
+| slug | 표시 이름 | 다루는 글 |
+|------|-----------|-----------|
+| `ai` | AI·에이전트 | Claude Code, 에이전트, eval, MCP |
+| `java-spring` | Java·Spring | 언어·프레임워크 동작, JVM, 동시성 |
+| `architecture` | 아키텍처·설계 | DDD, MSA 패턴, CQS, 서비스 설계 |
+| `messaging` | 메시징·이벤트 | Kafka, EDA, 아웃박스, 이벤트 알림 |
+| `database` | 데이터베이스 | RDB, Redis, MongoDB, OpenSearch |
+| `testing` | 테스트 | 테스트 전략, 테스트 도구 |
+| `infra` | 인프라·클라우드 | AWS, Docker, 네트워크 |
+| `dev-tools` | 개발 도구·환경 | IDE, Homebrew, Mac 셋업, 블로그 |
+| `math-cs` | 수학·CS | 수학, 통계, 지리, 암호화 기초 |
+
+- 새 카테고리는 기존 카테고리로 묶이지 않는 글이 여러 편 쌓였을 때만 추가합니다.
+- 세부 키워드는 카테고리 대신 `tags`로 표현합니다.
+
+### 태그
+
+태그는 카테고리를 가로지르는 기술·개념 키워드입니다(예: `redis`는 Java·Spring 글과 데이터베이스 글 양쪽에 붙는다).
+
+- **영문 소문자 kebab-case**로 씁니다: `claude-code`, `event-driven`, `api-design`. 한글 태그와 대소문자 변형(`DDD`/`ddd`)을 만들지 않습니다.
+- **기존 태그를 먼저 고릅니다.** 지금 쓰이는 태그는 홈의 "전체 태그 보기"(`/tags`)에서 확인합니다. 새 태그는 앞으로도 여러 글에 붙을 키워드일 때만 만듭니다.
+- 글당 **1~4개**. 제목을 그대로 쪼갠 단어(`problem`, `solution`)나 카테고리와 같은 뜻의 포괄어(`database`, `testing`)는 붙이지 않습니다.
+- 시리즈 이름은 태그로 반복하지 않습니다. 시리즈는 `series`로 묶입니다.
 
 ### 예시
 
@@ -80,7 +112,8 @@ title: "Next.js 15의 새로운 기능들"
 description: "Next.js 15에서 도입된 주요 변경사항과 새로운 기능들을 살펴봅니다."
 date: "2024-12-29"
 published: true
-tags: ["Next.js", "React", "프론트엔드"]
+category: "dev-tools"
+tags: ["nextjs", "react"]
 ---
 ```
 
@@ -244,6 +277,7 @@ title: "작성 중인 포스트"
 description: "아직 공개하지 않을 포스트입니다."
 date: "2024-12-30"
 published: false
+category: "java-spring"
 tags: []
 ---
 ```
@@ -252,7 +286,7 @@ tags: []
 
 1. [ ] `content/posts/` 에 `.mdx` 파일 생성
 2. [ ] 파일명은 `YYYY-MM-DD-slug.mdx` 형식
-3. [ ] 프론트매터 작성 (`title`, `description`, `date`, `published`, `tags` 필수)
+3. [ ] 프론트매터 작성 (`title`, `description`, `date`, `published`, `category`, `tags` 필수)
 4. [ ] 본문 작성
 5. [ ] `pnpm dev`로 미리보기 확인
 6. [ ] `published: true` 확인 (공개할 경우)
@@ -267,7 +301,8 @@ title: "기술 주제"
 description: "이 글에서 다루는 내용에 대한 설명"
 date: "2024-12-30"
 published: true
-tags: ["태그1", "태그2"]
+category: "java-spring"
+tags: ["spring", "jpa"]
 ---
 
 ## 소개
@@ -297,7 +332,8 @@ title: "TIL: 오늘 배운 것"
 description: "간단한 설명"
 date: "2024-12-30"
 published: true
-tags: ["TIL"]
+category: "java-spring"
+tags: ["java"]
 ---
 
 ## 배운 것

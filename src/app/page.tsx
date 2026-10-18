@@ -1,23 +1,24 @@
 import Link from "next/link";
 import { posts } from "@/lib/content";
-import { getTagCounts, sortPostsByDate } from "@/lib/utils";
+import { getCategoryCounts, sortPostsByDate } from "@/lib/utils";
+import { categoryHref } from "@/lib/categories";
 import { PostSearch } from "@/components/post-search";
 
 export default function Home() {
   const publishedPosts = sortPostsByDate(
     posts.filter((post) => post.published)
   );
-  const tagCounts = getTagCounts(publishedPosts);
+  const categoryCounts = getCategoryCounts(publishedPosts);
   const postsForSearch = publishedPosts.map((post) => ({
     slugAsParams: post.slugAsParams,
     title: post.title,
     description: post.description,
     date: post.date,
+    category: post.category,
     tags: post.tags,
     series: post.series,
     seriesOrder: post.seriesOrder,
   }));
-  const tagHref = (tag: string) => `/tags/${encodeURIComponent(tag)}`;
 
   return (
     <div>
@@ -29,24 +30,28 @@ export default function Home() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-xl font-semibold mb-4">Tags</h2>
-        {tagCounts.length === 0 ? (
-          <p className="text-muted-foreground">등록된 태그가 없습니다.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {tagCounts.map(({ tag, count }) => (
-              <li key={tag}>
-                <Link
-                  href={tagHref(tag)}
-                  className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:opacity-80"
-                >
-                  <span>{tag}</span>
-                  <span className="text-muted-foreground">({count})</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="text-xl font-semibold">Categories</h2>
+          <Link
+            href="/tags"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            전체 태그 보기 →
+          </Link>
+        </div>
+        <ul className="flex flex-wrap gap-2">
+          {categoryCounts.map(({ slug, label, count }) => (
+            <li key={slug}>
+              <Link
+                href={categoryHref(slug)}
+                className="inline-flex items-center gap-1 rounded border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                <span>{label}</span>
+                <span className="text-muted-foreground">{count}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <PostSearch posts={postsForSearch} />

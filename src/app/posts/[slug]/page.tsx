@@ -5,6 +5,7 @@ import { SeriesNavigation } from "@/components/series-navigation";
 import { TableOfContents } from "@/components/post-toc";
 import { formatDate, getSeriesInfo } from "@/lib/utils";
 import { siteConfig } from "@/lib/site-config";
+import { categoryHref, getCategory } from "@/lib/categories";
 import { Calendar, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -54,6 +55,7 @@ export async function generateMetadata({
       siteName: siteConfig.name,
       publishedTime: post.date,
       authors: [siteConfig.author.name],
+      section: getCategory(post.category)?.label,
       tags: post.tags,
     },
     twitter: {
@@ -105,6 +107,7 @@ export default async function PostPage({ params }: PostPageProps) {
       url: siteConfig.author.url,
     },
     url: `${siteConfig.url}/posts/${post.slugAsParams}`,
+    articleSection: getCategory(post.category)?.label,
     keywords: post.tags.join(", "),
     mainEntityOfPage: {
       "@type": "WebPage",
@@ -129,13 +132,19 @@ export default async function PostPage({ params }: PostPageProps) {
       <header className="mb-8">
         <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
         <p className="text-muted-foreground mb-4">{post.description}</p>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
             <Calendar className="w-4 h-4" />
             {formatDate(post.date)}
           </span>
+          <Link
+            href={categoryHref(post.category)}
+            className="font-medium text-foreground hover:underline"
+          >
+            {getCategory(post.category)?.label}
+          </Link>
           {post.tags.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {post.tags.map((tag) => (
                 <Link
                   key={tag}

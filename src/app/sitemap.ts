@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { posts } from "@/lib/content";
 import { siteConfig } from "@/lib/site-config";
+import { getCategoryCounts } from "@/lib/utils";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const publishedPosts = posts.filter((post) => post.published);
@@ -10,6 +11,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: new Date(post.date),
     changeFrequency: "monthly" as const,
     priority: 0.8,
+  }));
+
+  const categoryUrls = getCategoryCounts(publishedPosts).map(({ slug }) => ({
+    url: `${siteConfig.url}/categories/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
   }));
 
   // 모든 태그 추출
@@ -35,12 +43,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.5,
     },
     {
+      url: `${siteConfig.url}/categories`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.6,
+    },
+    {
       url: `${siteConfig.url}/tags`,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.6,
     },
     ...postUrls,
+    ...categoryUrls,
     ...tagUrls,
   ];
 }

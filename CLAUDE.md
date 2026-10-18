@@ -35,7 +35,8 @@
 
 `velite.config.ts` 스키마 기준:
 
-- 필수 기입: `title`, `description`, `date`, `published`, `tags`
+- 필수 기입: `title`, `description`, `date`, `published`, `category`, `tags`
+- `category`는 `src/lib/categories.ts`에 정의된 slug 중 하나(enum 검증). 카테고리는 10개 이하로 유지
 - 선택 필드: `series`, `seriesOrder`
 - slug는 파일 경로 기반 자동 생성(`s.path()`)
 
@@ -46,9 +47,10 @@
 ### 포스트 작성 요청
 
 1. `content/posts/`에 `YYYY-MM-DD-slug.mdx` 형식으로 생성
-2. frontmatter 필수 필드 명시
-3. 필요 시 `series`/`seriesOrder` 추가
-4. 시리즈 문맥과 링크/용어 일관성 검토
+2. frontmatter 필수 필드 명시 (`category`는 기존 카테고리 중 하나를 고른다)
+3. `tags`는 기존 태그(영문 소문자 kebab-case)에서 1~4개 고른다. 규칙은 `POST_WRITING_GUIDELINE.md`의 "태그" 절
+4. 필요 시 `series`/`seriesOrder` 추가
+5. 시리즈 문맥과 링크/용어 일관성 검토
 
 ### 배포 요청 (Vercel)
 

@@ -1,3 +1,5 @@
+import { categories } from "@/lib/categories";
+
 export function formatDate(date: string): string {
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
@@ -31,6 +33,27 @@ export function getTagCounts(
   return Array.from(counts.entries())
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => a.tag.localeCompare(b.tag));
+}
+
+export interface CategoryCount {
+  slug: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * 카테고리별 글 수를 categories 정의 순서대로 반환 (글이 없는 카테고리는 제외)
+ */
+export function getCategoryCounts(
+  posts: Array<{ category: string }>
+): CategoryCount[] {
+  return categories
+    .map(({ slug, label }) => ({
+      slug,
+      label,
+      count: posts.filter((post) => post.category === slug).length,
+    }))
+    .filter(({ count }) => count > 0);
 }
 
 // 시리즈 관련 타입

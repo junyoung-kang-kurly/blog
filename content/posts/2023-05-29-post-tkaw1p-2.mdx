@@ -3,7 +3,8 @@ title: "아웃박스 메시지를 삭제할때 유의할점"
 description: "KafkaProducer는 물론, spring-kafka의 KafkaTemplate도 send할때는 비동기적으로 처리된다.대체로 Kafka로 메세지를 발행할때 굳이 반환값이 궁금할 일은 없다.하지만 때론, \"정확히 브로커까지 전달이 되었는지\" 판별이 필요할 때가 있다."
 date: "2023-05-29"
 published: true
-tags: []
+category: "messaging"
+tags: ["kafka", "event-driven", "performance"]
 ---
 아웃박스패턴은 메세지브로커로 send가 되었을때 아웃박스를 삭제하는 과정이 필요하다.
 그런데 send메소드는 비동기적으로 처리된다.
