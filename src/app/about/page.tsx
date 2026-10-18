@@ -26,19 +26,23 @@ export default function AboutPage() {
         </ul>
 
         <h2>기술 스택</h2>
-        <p>이 블로그는 다음 기술로 만들어졌습니다:</p>
         <ul>
           <li>
-            <strong>Next.js 15</strong> - React 기반 프레임워크
+            <strong>Frameworks</strong>: Spring, JPA, jOOQ, Testcontainers
           </li>
           <li>
-            <strong>Velite</strong> - MDX 콘텐츠 관리
+            <strong>Distributed &amp; Messaging</strong>: Kafka, EDA, CQRS,
+            DDD, Hexagonal Architecture
           </li>
           <li>
-            <strong>Tailwind CSS</strong> - 유틸리티 기반 스타일링
+            <strong>Storage</strong>: PostgreSQL, MySQL, Redis, BigQuery,
+            DataDog, OpenSearch
           </li>
           <li>
-            <strong>Vercel</strong> - 배포 플랫폼
+            <strong>Geospatial &amp; Routing</strong>: OSRM, PostGIS
+          </li>
+          <li>
+            <strong>Cloud</strong>: AWS, K8S, Docker
           </li>
         </ul>
 
