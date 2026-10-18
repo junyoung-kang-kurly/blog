@@ -70,6 +70,7 @@
 - 유틸 함수: `src/lib/`
 - 콘텐츠 타입 변경: `velite.config.ts` + 소비 코드 동시 점검
 - MDX 렌더링 로직 변경 시 `src/components/mdx-content.tsx` 동작 확인
+- 문단 안 단일 줄바꿈은 `remark-breaks`로 `<br>` 처리된다. velog 시절 글이 한 줄 = 한 문장으로 쓰여 있어 이 플러그인을 빼면 대부분의 옛 글이 한 덩어리로 뭉친다
 
 ## 스타일링 원칙
 
