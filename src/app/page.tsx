@@ -23,7 +23,7 @@ export default function Home() {
   return (
     <div>
       <section className="mb-12">
-        <h1 className="text-3xl font-bold mb-4">Bonjgi의 Tech Blog</h1>
+        <h1 className="text-3xl font-bold mb-4">Bonjugi의 Tech Blog</h1>
         <p className="text-muted-foreground">
           기술과 경험을 공유합니다.
         </p>
