@@ -45,14 +45,14 @@ export function SeriesNavigation({ seriesInfo }: SeriesNavigationProps) {
       </ol>
 
       {/* 이전/다음 네비게이션 */}
-      <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+      <div className="flex justify-between items-center gap-4 pt-3 border-t border-gray-200">
         {prevPost ? (
           <Link
             href={`/posts/${prevPost.slugAsParams}`}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
+            className="flex min-w-0 items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
           >
             <span>←</span>
-            <span className="truncate max-w-[150px]">{prevPost.title}</span>
+            <span className="min-w-0 truncate max-w-[150px]">{prevPost.title}</span>
           </Link>
         ) : (
           <div />
@@ -61,9 +61,9 @@ export function SeriesNavigation({ seriesInfo }: SeriesNavigationProps) {
         {nextPost ? (
           <Link
             href={`/posts/${nextPost.slugAsParams}`}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
+            className="flex min-w-0 items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
           >
-            <span className="truncate max-w-[150px]">{nextPost.title}</span>
+            <span className="min-w-0 truncate max-w-[150px]">{nextPost.title}</span>
             <span>→</span>
           </Link>
         ) : (

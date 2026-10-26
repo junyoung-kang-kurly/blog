@@ -15,7 +15,7 @@ export default function CategoriesPage() {
   return (
     <div>
       <header className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Categories</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Categories</h1>
         <p className="text-muted-foreground">전체 카테고리 목록입니다.</p>
       </header>
 

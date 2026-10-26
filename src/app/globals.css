@@ -26,6 +26,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  /* 긴 URL·공백 없는 영단어가 모바일 폭을 넘기지 않도록 줄바꿈 허용 */
+  overflow-wrap: break-word;
 }
 
 /* Prose styles for MDX content */
@@ -145,10 +147,14 @@ body {
   margin: 2rem 0;
 }
 
+.prose .table-wrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
 .prose table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1.5rem 0;
   font-size: 0.875rem;
 }
 
@@ -166,6 +172,12 @@ body {
 .prose td {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+/* 좁은 화면에서 한글이 글자 단위로 쪼개지지 않게 하고, 넘치는 폭은 .table-wrapper가 스크롤로 받는다 */
+.prose th,
+.prose td {
+  word-break: keep-all;
 }
 
 .prose tbody tr:hover {

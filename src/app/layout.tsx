@@ -64,11 +64,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
       >
         <header className="border-b border-border">
-          <nav className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+          <nav className="max-w-3xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <Link href="/" className="text-xl font-bold hover:opacity-80">
               Tech Blog
             </Link>
-            <ul className="flex items-center gap-6">
+            <ul className="flex items-center gap-3 sm:gap-6">
               <li>
                 <Link
                   href="/"

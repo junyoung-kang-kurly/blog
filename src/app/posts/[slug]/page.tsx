@@ -130,7 +130,7 @@ export default async function PostPage({ params }: PostPageProps) {
       </Link>
 
       <header className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4">{post.title}</h1>
         <p className="text-muted-foreground mb-4">{post.description}</p>
         <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">

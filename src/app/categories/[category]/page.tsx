@@ -73,7 +73,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       </Link>
 
       <header className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">{categoryInfo.label}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{categoryInfo.label}</h1>
         <p className="text-muted-foreground">
           {filteredPosts.length}개의 글이 있습니다.
         </p>
